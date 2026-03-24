@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
+	import { type Window } from "@tauri-apps/api/window";
 	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import { onMount } from "svelte";
-	import { renderMarkdown } from "$lib/markdown";
+	import { renderMarkdown, isLatestRender } from "$lib/markdown";
 	import { getTabs } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
 	import { getPreferences } from "$lib/preferences.svelte";
@@ -13,19 +14,20 @@
 
 	const tabs = getTabs();
 	const prefs = getPreferences();
+	let appWindow: Window;
 
 	function handleTitlebarDrag(e: MouseEvent) {
 		if (e.button !== 0) return;
 		if (!(e.target instanceof HTMLElement)) return;
 		if (e.target.closest(".tab, button")) return;
-		getCurrentWindow().startDragging();
+		appWindow.startDragging();
 	}
 
 	async function openFile(path: string) {
 		try {
 			const result = await invoke<FileContent>("read_file", { path });
-			const rendered = await renderMarkdown(result.content);
-			tabs.add({ ...result, rendered });
+			const { html } = await renderMarkdown(result.content);
+			tabs.add({ ...result, rendered: html });
 			await invoke("watch_file", { path: result.path });
 		} catch (err) {
 			console.error(`Failed to open ${path}:`, err);
@@ -36,6 +38,11 @@
 		const tab = tabs.items[index];
 		if (!tab) return;
 		const { path } = tab;
+		const timer = debounceTimers.get(path);
+		if (timer) {
+			clearTimeout(timer);
+			debounceTimers.delete(path);
+		}
 		tabs.close(index);
 		try {
 			await invoke("unwatch_file", { path });
@@ -61,8 +68,9 @@
 			setTimeout(async () => {
 				debounceTimers.delete(payload.path);
 				try {
-					const rendered = await renderMarkdown(payload.content);
-					tabs.update(payload.path, payload.content, rendered);
+					const { html, generation } = await renderMarkdown(payload.content);
+					if (!isLatestRender(generation)) return;
+					tabs.update(payload.path, payload.content, html);
 				} catch (err) {
 					console.error(`Failed to render ${payload.path}:`, err);
 				}
@@ -115,6 +123,7 @@
 	}
 
 	onMount(() => {
+		appWindow = getCurrentWindow();
 		prefs.init();
 
 		const unlistenChanged = listen<FileContent>("file-changed", (event) => {
@@ -221,7 +230,7 @@
 			color 0.2s;
 	}
 
-	/* Titlebar / tab bar */
+	/* Titlebar / tab bar — fixed dark chrome */
 	.titlebar {
 		display: flex;
 		align-items: center;
@@ -229,7 +238,10 @@
 		flex-shrink: 0;
 		user-select: none;
 		-webkit-user-select: none;
-		border-bottom: 1px solid;
+		background: #161b22;
+		border-bottom: 1px solid #30363d;
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+			Arial, sans-serif;
 	}
 
 	.titlebar-spacer {
@@ -241,9 +253,10 @@
 		display: flex;
 		flex: 1;
 		overflow-x: auto;
-		gap: 1px;
-		align-items: stretch;
+		gap: 6px;
+		align-items: center;
 		height: 100%;
+		padding: 0 4px;
 	}
 
 	.tabs::-webkit-scrollbar {
@@ -253,21 +266,41 @@
 	.tab {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 0 14px;
+		gap: 5px;
+		padding: 4px 12px;
 		font-size: 12px;
-		border: none;
+		font-weight: 600;
+		border: 2px solid #30363d;
+		border-radius: 0;
 		cursor: pointer;
 		white-space: nowrap;
-		transition: background-color 0.15s;
+		transition: all 0.1s ease;
 		font-family: inherit;
-		height: 100%;
+		box-shadow: 2px 2px 0 #30363d;
+		background: #21262d;
+		color: #8b949e;
+	}
+
+	.tab:hover:not(.active) {
+		transform: translate(-1px, -1px);
+		box-shadow: 3px 3px 0 #30363d;
+	}
+
+	.tab:active {
+		transform: translate(1px, 1px);
+		box-shadow: 1px 1px 0 #30363d;
+	}
+
+	.tab.active {
+		background: #58a6ff;
+		color: #0d1117;
+		border-color: #1f6feb;
+		box-shadow: 2px 2px 0 #1f6feb;
 	}
 
 	.tab:focus-visible {
-		outline: 2px solid var(--md-accent, #58a6ff);
-		outline-offset: -2px;
-		border-radius: 2px;
+		outline: 2px solid #58a6ff;
+		outline-offset: 2px;
 	}
 
 	.tab-name {
@@ -280,16 +313,16 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 18px;
-		height: 18px;
-		border: none;
-		border-radius: 4px;
-		font-size: 14px;
+		width: 16px;
+		height: 16px;
+		border: 1px solid currentColor;
+		border-radius: 0;
+		font-size: 12px;
+		font-weight: 800;
+		line-height: 1;
 		cursor: pointer;
 		opacity: 0;
-		transition:
-			opacity 0.1s,
-			background-color 0.1s;
+		transition: all 0.1s ease;
 		background: transparent;
 		color: inherit;
 		font-family: inherit;
@@ -301,6 +334,9 @@
 
 	.tab-close:hover {
 		opacity: 1 !important;
+		background: #ef4444;
+		color: #fff;
+		border-color: #ef4444;
 	}
 
 	/* Content area */
@@ -318,6 +354,11 @@
 		background: transparent;
 	}
 
+	.content::-webkit-scrollbar-thumb {
+		background: #30363d;
+		border-radius: 4px;
+	}
+
 	/* Empty state */
 	.empty-state {
 		display: flex;
@@ -326,7 +367,7 @@
 		justify-content: center;
 		height: 100%;
 		gap: 8px;
-		opacity: 0.5;
+		color: #8b949e;
 	}
 
 	.empty-title {
@@ -344,6 +385,7 @@
 		padding: 2px 6px;
 		border-radius: 4px;
 		font-size: 0.9em;
+		background: rgba(110, 118, 129, 0.4);
 	}
 
 	.open-file-btn {

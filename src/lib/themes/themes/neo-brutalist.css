@@ -30,39 +30,6 @@
 		--md-accent: #ff5722;
 	}
 
-	.titlebar {
-		background: #1a1a1a;
-		border-color: #ff5722;
-	}
-
-	.tab {
-		background: transparent;
-		color: #8b8b8b;
-	}
-
-	.tab:hover {
-		background: #333333;
-	}
-
-	.tab.active {
-		background: #fffdf0;
-		color: #1a1a1a;
-	}
-
-	.tab-close:hover {
-		background: #444444;
-	}
-
-	.theme-toggle:hover,
-	.theme-picker-trigger:hover {
-		background: #333333;
-	}
-
-	.content::-webkit-scrollbar-thumb {
-		background: #1a1a1a;
-		border-radius: 0;
-	}
-
 	/* Markdown styling */
 	.markdown-body {
 		max-width: var(--md-content-width, 800px);
@@ -242,11 +209,6 @@
 	.markdown-body ::selection {
 		background: #ff5722;
 		color: #fffdf0;
-	}
-
-	.empty-hint code {
-		background: #ff5722;
-		color: #1a1a1a;
 	}
 
 	/* Shiki syntax tokens */
