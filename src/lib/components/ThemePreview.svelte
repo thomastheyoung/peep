@@ -16,6 +16,8 @@
 		.app { margin: 0; }
 		.markdown-body {
 			max-width: none;
+			margin-left: auto;
+			margin-right: auto;
 			padding: 20px;
 			font-size: 13px;
 		}
