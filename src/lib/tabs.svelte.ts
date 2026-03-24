@@ -3,6 +3,16 @@ export interface Tab {
 	filename: string;
 	content: string;
 	rendered: string;
+	color: string;
+}
+
+const TAB_COLORS = ['#fde047', '#f472b6', '#67e8f9', '#a78bfa', '#86efac', '#fdba74', '#f87171', '#22d3ee'];
+let colorIndex = 0;
+
+function nextColor(): string {
+	const color = TAB_COLORS[colorIndex % TAB_COLORS.length]!;
+	colorIndex++;
+	return color;
 }
 
 let tabs = $state<Tab[]>([]);
@@ -19,13 +29,13 @@ export function getTabs() {
 		get active(): Tab | undefined {
 			return tabs[activeIndex];
 		},
-		add(tab: Tab) {
+		add(tab: Omit<Tab, 'color'>) {
 			const existing = tabs.findIndex((t) => t.path === tab.path);
 			if (existing >= 0) {
 				activeIndex = existing;
 				return;
 			}
-			tabs.push(tab);
+			tabs.push({ ...tab, color: nextColor() });
 			activeIndex = tabs.length - 1;
 		},
 		update(path: string, content: string, rendered: string) {

@@ -10,10 +10,14 @@
 	import { getPreferences } from "$lib/preferences.svelte";
 	import { open as openDialog } from "@tauri-apps/plugin-dialog";
 	import Preferences from "$lib/components/Preferences.svelte";
+	import CommandPalette from "$lib/components/CommandPalette.svelte";
+	import { getCommandPalette } from "$lib/command-palette.svelte";
+	import { buildCommands } from "$lib/commands";
 	import "$lib/themes/base.css";
 
 	const tabs = getTabs();
 	const prefs = getPreferences();
+	const palette = getCommandPalette();
 	let appWindow: Window;
 
 	function handleTitlebarDrag(e: MouseEvent) {
@@ -108,6 +112,16 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		const mod = e.metaKey || e.ctrlKey;
+		if (mod && e.key === "k") {
+			e.preventDefault();
+			if (palette.open) {
+				palette.close();
+			} else {
+				prefs.closePanel();
+				palette.show(buildCommands({ prefs, tabs, openFileDialog, closeTab }));
+			}
+			return;
+		}
 		if (mod && e.key === ",") {
 			e.preventDefault();
 			prefs.togglePanel();
@@ -174,6 +188,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <Preferences />
+<CommandPalette />
 
 <div class="app" style:--md-content-width={prefs.contentWidthCss}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -185,6 +200,7 @@
 					<button
 						class="tab"
 						class:active={i === tabs.activeIndex}
+						style="--tab-color: {tab.color}"
 						onclick={() => tabs.activate(i)}
 						onmousedown={(e) => handleMiddleClick(e, i)}
 						role="tab"
@@ -192,6 +208,7 @@
 						aria-selected={i === tabs.activeIndex}
 						type="button"
 					>
+						<span class="tab-spacer"></span>
 						<span class="tab-name">{tab.filename}</span>
 						<span
 							class="tab-close"
@@ -208,7 +225,7 @@
 							}}
 							tabindex={-1}
 							role="button"
-							aria-label="Close {tab.filename}">&times;</span
+							aria-label="Close {tab.filename}"></span
 						>
 					</button>
 				{/each}
@@ -298,15 +315,20 @@
 	.tab {
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		padding: 4px 12px;
+		gap: 4px;
+		padding: 4px 5px;
 		font-size: 12px;
 		font-weight: 600;
 		border: 2px solid #30363d;
 		border-radius: 0;
 		cursor: pointer;
 		white-space: nowrap;
-		transition: all 0.1s ease;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease,
+			border-color 0.15s ease,
+			box-shadow 0.15s ease,
+			transform 0.1s ease;
 		font-family: inherit;
 		box-shadow: 2px 2px 0 #30363d;
 		background: #21262d;
@@ -314,6 +336,8 @@
 	}
 
 	.tab:hover:not(.active) {
+		background: #282e36;
+		color: #c9d1d9;
 		transform: translate(-1px, -1px);
 		box-shadow: 3px 3px 0 #30363d;
 	}
@@ -324,10 +348,10 @@
 	}
 
 	.tab.active {
-		background: #58a6ff;
+		background: var(--tab-color, #58a6ff);
 		color: #0d1117;
-		border-color: #1f6feb;
-		box-shadow: 2px 2px 0 #1f6feb;
+		border-color: color-mix(in srgb, var(--tab-color, #1f6feb) 80%, #000);
+		box-shadow: 2px 2px 0 color-mix(in srgb, var(--tab-color, #1f6feb) 80%, #000);
 	}
 
 	.tab:focus-visible {
@@ -341,23 +365,47 @@
 		text-overflow: ellipsis;
 	}
 
+	.tab-spacer {
+		width: 14px;
+		flex-shrink: 0;
+	}
+
 	.tab-close {
+		position: relative;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 16px;
-		height: 16px;
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
 		border: 1px solid currentColor;
 		border-radius: 0;
-		font-size: 12px;
-		font-weight: 800;
-		line-height: 1;
 		cursor: pointer;
 		opacity: 0;
-		transition: all 0.1s ease;
+		transition:
+			opacity 0.15s ease,
+			background 0.1s ease,
+			color 0.1s ease,
+			border-color 0.1s ease;
 		background: transparent;
 		color: inherit;
-		font-family: inherit;
+	}
+
+	.tab-close::before,
+	.tab-close::after {
+		content: '';
+		position: absolute;
+		width: 8px;
+		height: 1.5px;
+		background: currentColor;
+	}
+
+	.tab-close::before {
+		transform: rotate(45deg);
+	}
+
+	.tab-close::after {
+		transform: rotate(-45deg);
 	}
 
 	.tab:hover .tab-close {

@@ -54,7 +54,7 @@
 		padding: 10px 18px;
 		border: 3px solid #000;
 		border-radius: 0;
-		background: var(--tab-color);
+		background: #d4d4d4;
 		color: #000;
 		font-size: 14px;
 		font-weight: 700;
@@ -77,6 +77,7 @@
 	}
 
 	.tab.active {
+		background: var(--tab-color);
 		transform: translate(2px, 2px);
 		box-shadow: 2px 2px 0 #000;
 		outline: 2px solid #000;
