@@ -1,4 +1,3 @@
-import DOMPurify from "dompurify";
 import { Marked } from "marked";
 import {
 	createCssVariablesTheme,
@@ -9,6 +8,7 @@ import {
 const cssVarsTheme = createCssVariablesTheme();
 
 let highlighterPromise: Promise<Highlighter> | null = null;
+let loadedLangsSet: Set<string> | null = null;
 
 function getHighlighter(): Promise<Highlighter> {
 	if (!highlighterPromise) {
@@ -39,16 +39,26 @@ function getHighlighter(): Promise<Highlighter> {
 	return highlighterPromise;
 }
 
-export async function renderMarkdown(source: string): Promise<string> {
+const marked = new Marked();
+
+let renderGeneration = 0;
+
+export async function renderMarkdown(
+	source: string,
+): Promise<{ html: string; generation: number }> {
+	const generation = ++renderGeneration;
 	const hl = await getHighlighter();
 
-	const marked = new Marked({
+	if (!loadedLangsSet) {
+		loadedLangsSet = new Set(hl.getLoadedLanguages() as string[]);
+	}
+
+	marked.use({
 		renderer: {
 			code({ text, lang }) {
 				const language = lang || "text";
 				try {
-					const loadedLangs = hl.getLoadedLanguages() as string[];
-					if (loadedLangs.includes(language)) {
+					if (loadedLangsSet!.has(language)) {
 						return hl.codeToHtml(text, {
 							lang: language,
 							theme: "css-variables",
@@ -63,9 +73,11 @@ export async function renderMarkdown(source: string): Promise<string> {
 	});
 
 	const html = await marked.parse(source);
-	return DOMPurify.sanitize(html, {
-		ADD_ATTR: ["style"],
-	});
+	return { html, generation };
+}
+
+export function isLatestRender(generation: number): boolean {
+	return generation === renderGeneration;
 }
 
 function escapeHtml(text: string): string {

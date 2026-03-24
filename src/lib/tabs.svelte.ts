@@ -33,7 +33,8 @@ export function getTabs() {
 			if (idx < 0) return;
 			const existing = tabs[idx];
 			if (!existing) return;
-			tabs[idx] = { ...existing, content, rendered };
+			existing.content = content;
+			existing.rendered = rendered;
 		},
 		close(index: number) {
 			if (index < 0 || index >= tabs.length) return;
