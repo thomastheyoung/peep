@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
@@ -154,8 +155,40 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // args[0] is the binary path; real file args start at [1]
+            let file_args: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
+            let cwd = _cwd;
+            for arg in file_args {
+                let path = if PathBuf::from(arg).is_absolute() {
+                    PathBuf::from(arg)
+                } else {
+                    PathBuf::from(&cwd).join(arg)
+                };
+                if let Ok(canonical) = fs::canonicalize(&path) {
+                    if canonical.is_file() && is_markdown_file(&canonical) {
+                        let _ = app.emit("open-file", canonical.to_string_lossy().into_owned());
+                    } else if canonical.is_dir() {
+                        if let Ok(entries) = fs::read_dir(&canonical) {
+                            for entry in entries.flatten() {
+                                let p = entry.path();
+                                if is_markdown_file(&p) {
+                                    let _ = app.emit("open-file", p.to_string_lossy().into_owned());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Focus the existing window
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(AppState {
             watched_files: Mutex::new(HashSet::new()),
             watcher: Mutex::new(None),
@@ -168,6 +201,79 @@ pub fn run() {
             get_initial_files
         ])
         .setup(|app| {
+            let handle = app.handle();
+
+            let app_menu = Submenu::with_items(
+                handle,
+                "md",
+                true,
+                &[
+                    &PredefinedMenuItem::about(handle, None, None)?,
+                    &PredefinedMenuItem::separator(handle)?,
+                    &PredefinedMenuItem::services(handle, None)?,
+                    &PredefinedMenuItem::separator(handle)?,
+                    &PredefinedMenuItem::hide(handle, None)?,
+                    &PredefinedMenuItem::hide_others(handle, None)?,
+                    &PredefinedMenuItem::show_all(handle, None)?,
+                    &PredefinedMenuItem::separator(handle)?,
+                    &PredefinedMenuItem::quit(handle, None)?,
+                ],
+            )?;
+
+            let edit_menu = Submenu::with_items(
+                handle,
+                "Edit",
+                true,
+                &[
+                    &PredefinedMenuItem::undo(handle, None)?,
+                    &PredefinedMenuItem::redo(handle, None)?,
+                    &PredefinedMenuItem::separator(handle)?,
+                    &PredefinedMenuItem::cut(handle, None)?,
+                    &PredefinedMenuItem::copy(handle, None)?,
+                    &PredefinedMenuItem::paste(handle, None)?,
+                    &PredefinedMenuItem::select_all(handle, None)?,
+                ],
+            )?;
+
+            let zoom_in =
+                MenuItem::with_id(handle, "zoom_in", "Zoom In", true, Some("CmdOrCtrl+="))?;
+            let zoom_out =
+                MenuItem::with_id(handle, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?;
+            let zoom_reset = MenuItem::with_id(
+                handle,
+                "zoom_reset",
+                "Actual Size",
+                true,
+                Some("CmdOrCtrl+0"),
+            )?;
+
+            let view_menu = Submenu::with_items(
+                handle,
+                "View",
+                true,
+                &[&zoom_in, &zoom_out, &zoom_reset],
+            )?;
+
+            let menu = Menu::with_items(handle, &[&app_menu, &edit_menu, &view_menu])?;
+            app.set_menu(menu)?;
+
+            app.on_menu_event(|app, event| {
+                let id = event.id();
+                println!("[menu] event: {:?}", id);
+                match id.as_ref() {
+                    "zoom_in" => {
+                        let _ = app.emit("zoom", "in");
+                    }
+                    "zoom_out" => {
+                        let _ = app.emit("zoom", "out");
+                    }
+                    "zoom_reset" => {
+                        let _ = app.emit("zoom", "reset");
+                    }
+                    _ => {}
+                }
+            });
+
             let args: Vec<String> = std::env::args().skip(1).collect();
             if !args.is_empty() {
                 let state = app.state::<AppState>();

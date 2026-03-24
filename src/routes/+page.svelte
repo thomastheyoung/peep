@@ -130,6 +130,26 @@
 			handleFileChanged(event.payload);
 		});
 
+		const unlistenOpen = listen<string>("open-file", (event) => {
+			openFile(event.payload);
+		});
+
+		const unlistenZoom = listen<string>("zoom", (event) => {
+			console.log("[zoom] event received:", event.payload);
+			switch (event.payload) {
+				case "in":
+					prefs.zoomIn();
+					break;
+				case "out":
+					prefs.zoomOut();
+					break;
+				case "reset":
+					prefs.resetZoom();
+					break;
+			}
+			console.log("[zoom] level now:", prefs.zoomLevel);
+		});
+
 		invoke<string[]>("get_initial_files").then(async (files) => {
 			for (const path of files) {
 				await openFile(path);
@@ -138,6 +158,8 @@
 
 		return () => {
 			unlistenChanged.then((fn) => fn());
+			unlistenOpen.then((fn) => fn());
+			unlistenZoom.then((fn) => fn());
 			for (const timer of debounceTimers.values()) clearTimeout(timer);
 		};
 	});
@@ -194,7 +216,7 @@
 		{/if}
 	</header>
 
-	<main class="content">
+	<main class="content" style:zoom={prefs.zoomLevel}>
 		{#if tabs.active}
 			<article class="markdown-body">
 				{@html tabs.active.rendered}

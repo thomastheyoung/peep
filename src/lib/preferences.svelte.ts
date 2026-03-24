@@ -7,6 +7,7 @@ const STORAGE_KEY = "md-preferences";
 interface StoredPreferences {
 	theme?: string;
 	contentWidth?: ContentWidth;
+	zoomLevel?: number;
 }
 
 function loadStored(): StoredPreferences {
@@ -22,7 +23,12 @@ function saveStored(prefs: StoredPreferences) {
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
 }
 
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.1;
+
 let contentWidth = $state<ContentWidth>("auto");
+let zoomLevel = $state(1);
 let showPanel = $state(false);
 
 const contentWidthValues: Record<ContentWidth, string> = {
@@ -44,18 +50,37 @@ export function getPreferences() {
 		get showPanel() {
 			return showPanel;
 		},
+		get zoomLevel() {
+			return zoomLevel;
+		},
+		get zoomCss() {
+			return `${zoomLevel * 100}%`;
+		},
 		get theme() {
 			return themeState;
 		},
 
 		setContentWidth(value: ContentWidth) {
 			contentWidth = value;
-			saveStored({ theme: themeState.id, contentWidth: value });
+			saveStored({ theme: themeState.id, contentWidth: value, zoomLevel });
+		},
+
+		zoomIn() {
+			zoomLevel = Math.min(ZOOM_MAX, Math.round((zoomLevel + ZOOM_STEP) * 10) / 10);
+			saveStored({ theme: themeState.id, contentWidth, zoomLevel });
+		},
+		zoomOut() {
+			zoomLevel = Math.max(ZOOM_MIN, Math.round((zoomLevel - ZOOM_STEP) * 10) / 10);
+			saveStored({ theme: themeState.id, contentWidth, zoomLevel });
+		},
+		resetZoom() {
+			zoomLevel = 1;
+			saveStored({ theme: themeState.id, contentWidth, zoomLevel });
 		},
 
 		async setTheme(id: string) {
 			await themeState.setTheme(id);
-			saveStored({ theme: id, contentWidth });
+			saveStored({ theme: id, contentWidth, zoomLevel });
 		},
 
 		openPanel() {
@@ -71,6 +96,7 @@ export function getPreferences() {
 		async init() {
 			const stored = loadStored();
 			if (stored.contentWidth) contentWidth = stored.contentWidth;
+			if (stored.zoomLevel) zoomLevel = stored.zoomLevel;
 
 			// Theme init — prefer preferences storage, fall back to theme's own storage
 			if (stored.theme) {
