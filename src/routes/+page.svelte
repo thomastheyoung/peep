@@ -140,8 +140,8 @@
 
 <div class="app">
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<header class="titlebar" onmousedown={handleTitlebarDrag}>
-		<div class="titlebar-spacer"></div>
+	<header class="titlebar" data-tauri-drag-region onmousedown={handleTitlebarDrag}>
+		<div class="titlebar-spacer" data-tauri-drag-region></div>
 		{#if tabs.items.length > 0}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<nav class="tabs" role="tablist" onkeydown={handleTabListKeydown}>
@@ -196,13 +196,13 @@
 </div>
 
 <style>
-	:global(*) {
-		margin: 0;
-		padding: 0;
+	:global(*, *::before, *::after) {
 		box-sizing: border-box;
 	}
 
 	:global(body) {
+		margin: 0;
+		padding: 0;
 		overflow: hidden;
 	}
 
