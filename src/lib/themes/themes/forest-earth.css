@@ -1,0 +1,249 @@
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 300;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-300-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 300;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-300-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 700;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-700-italic.woff2") format("woff2");
+}
+
+@layer theme {
+	.app {
+		background: #f5f0e8;
+		color: #2d3a2e;
+		font-family: "Merriweather", Georgia, serif;
+		--md-accent: #4a7c59;
+	}
+
+	/* Markdown styling */
+	.markdown-body {
+		max-width: var(--md-content-width, 700px);
+		line-height: 1.85;
+		font-size: 16px;
+		padding: 56px 48px;
+	}
+
+	.markdown-body h1 {
+		font-family: system-ui, -apple-system, sans-serif;
+		font-weight: 700;
+		font-size: 1.8em;
+		color: #4a7c59;
+		border-bottom: 2px solid #c4956a;
+		padding-bottom: 12px;
+		margin-top: 56px;
+		margin-bottom: 28px;
+		line-height: 1.3;
+	}
+
+	.markdown-body h2 {
+		font-family: system-ui, -apple-system, sans-serif;
+		font-weight: 600;
+		font-size: 1.5em;
+		color: #8b5e3c;
+		border-bottom: none;
+		margin-top: 44px;
+		margin-bottom: 18px;
+		line-height: 1.35;
+	}
+
+	.markdown-body h3 {
+		font-family: system-ui, -apple-system, sans-serif;
+		font-weight: 600;
+		font-size: 1.25em;
+		color: #4a7c59;
+		margin-top: 36px;
+	}
+
+	.markdown-body h4 {
+		font-family: system-ui, -apple-system, sans-serif;
+		font-weight: 600;
+		font-size: 1.05em;
+		color: #6b5340;
+	}
+
+	.markdown-body p {
+		margin-bottom: 18px;
+		line-height: 1.85;
+		color: #2d3a2e;
+	}
+
+	.markdown-body strong {
+		font-weight: 700;
+		color: #1e2a1f;
+	}
+
+	.markdown-body em {
+		color: #3d4a3e;
+	}
+
+	.markdown-body a {
+		color: #4a7c59;
+		text-decoration: underline;
+		text-decoration-color: rgba(74, 124, 89, 0.4);
+		text-underline-offset: 2px;
+		transition: text-decoration-color 0.2s;
+	}
+
+	.markdown-body a:hover {
+		text-decoration-color: #4a7c59;
+	}
+
+	.markdown-body code {
+		font-family: ui-monospace, "SF Mono", monospace;
+		background: #e8f0e8;
+		border-radius: 3px;
+		color: #4a7c59;
+	}
+
+	.markdown-body pre {
+		background: #fefcf8;
+		border-left: 3px solid #4a7c59;
+		border-radius: 4px;
+		padding: 24px;
+		margin: 28px 0;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+	}
+
+	.markdown-body pre code {
+		font-family: ui-monospace, "SF Mono", monospace;
+		color: #2d3a2e;
+		background: none;
+	}
+
+	.markdown-body blockquote {
+		border-left: 3px solid #c4956a;
+		margin: 28px 0;
+		padding: 12px 24px;
+		background: #faf5ee;
+		font-style: italic;
+		border-radius: 0 6px 6px 0;
+	}
+
+	.markdown-body blockquote p {
+		margin-bottom: 0;
+		color: #6b5340;
+	}
+
+	.markdown-body table {
+		border-collapse: collapse;
+	}
+
+	.markdown-body thead {
+		border-bottom: 2px solid #c4956a;
+	}
+
+	.markdown-body th {
+		font-family: system-ui, -apple-system, sans-serif;
+		font-weight: 600;
+		font-size: 13px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		padding: 10px 16px;
+		color: #8b5e3c;
+		border-bottom: 2px solid #c4956a;
+		border-left: none;
+		border-right: none;
+	}
+
+	.markdown-body td {
+		padding: 10px 16px;
+		border-color: #ddd5c8;
+		border-left: none;
+		border-right: none;
+		color: #2d3a2e;
+	}
+
+	.markdown-body tbody tr:nth-child(even) {
+		background: rgba(74, 124, 89, 0.04);
+	}
+
+	.markdown-body tbody tr:nth-child(odd) {
+		background: rgba(250, 245, 238, 0.5);
+	}
+
+	.markdown-body tbody tr:hover {
+		background: rgba(74, 124, 89, 0.08);
+	}
+
+	.markdown-body hr {
+		border: none;
+		height: 1px;
+		background: #c4956a;
+		max-width: 200px;
+		margin: 48px auto;
+	}
+
+	.markdown-body ul li::marker {
+		color: #4a7c59;
+	}
+
+	.markdown-body ol li::marker {
+		color: #4a7c59;
+		font-weight: 600;
+	}
+
+	.markdown-body img {
+		border-radius: 4px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	}
+
+	.markdown-body ::selection {
+		background: rgba(74, 124, 89, 0.2);
+		color: #1e2a1f;
+	}
+
+	/* Shiki syntax tokens */
+	.shiki,
+	.shiki span {
+		--shiki-foreground: #2d3a2e;
+		--shiki-background: #fefcf8;
+		--shiki-token-constant: #8b5e3c;
+		--shiki-token-string: #8b5e3c;
+		--shiki-token-comment: #8a9a8b;
+		--shiki-token-keyword: #4a7c59;
+		--shiki-token-parameter: #6b4c8a;
+		--shiki-token-function: #6b4c8a;
+		--shiki-token-string-expression: #8b5e3c;
+		--shiki-token-punctuation: #2d3a2e;
+		--shiki-token-link: #4a7c59;
+	}
+}

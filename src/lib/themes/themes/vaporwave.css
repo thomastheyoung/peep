@@ -1,0 +1,197 @@
+@layer theme {
+	.app {
+		background:
+			repeating-linear-gradient(
+				0deg,
+				rgba(255, 255, 255, 0.03) 0px,
+				rgba(255, 255, 255, 0.03) 1px,
+				transparent 1px,
+				transparent 40px
+			),
+			repeating-linear-gradient(
+				90deg,
+				rgba(255, 255, 255, 0.03) 0px,
+				rgba(255, 255, 255, 0.03) 1px,
+				transparent 1px,
+				transparent 40px
+			),
+			linear-gradient(to bottom, #2d1b69, #1a0033);
+		color: #e8c4f0;
+		font-family: system-ui, sans-serif;
+		--md-accent: #ff71ce;
+	}
+
+	.markdown-body {
+		max-width: var(--md-content-width, 800px);
+	}
+
+	.markdown-body h1 {
+		font-size: 2.5em;
+		color: #ff71ce;
+		text-shadow: 0 0 10px rgba(255, 113, 206, 0.7), 0 0 20px rgba(255, 113, 206, 0.4);
+		border-bottom: none;
+		margin-top: 40px;
+		margin-bottom: 20px;
+	}
+
+	.markdown-body h2 {
+		font-size: 1.8em;
+		color: #01cdfe;
+		text-shadow: 0 0 8px rgba(1, 205, 254, 0.6), 0 0 16px rgba(1, 205, 254, 0.3);
+		border-bottom: none;
+		margin-top: 32px;
+		margin-bottom: 16px;
+	}
+
+	.markdown-body h3 {
+		font-size: 1.4em;
+		color: #b967ff;
+		margin-top: 28px;
+		margin-bottom: 12px;
+	}
+
+	.markdown-body h4 {
+		font-size: 1.2em;
+		color: #fffb96;
+		margin-top: 24px;
+		margin-bottom: 10px;
+	}
+
+	.markdown-body strong {
+		color: #ff71ce;
+	}
+
+	.markdown-body em {
+		color: #fffb96;
+	}
+
+	.markdown-body a {
+		color: #fffb96;
+		text-decoration: none;
+		transition: text-shadow 0.2s ease;
+	}
+
+	.markdown-body a:hover {
+		text-shadow: 0 0 8px rgba(255, 251, 150, 0.7), 0 0 16px rgba(255, 251, 150, 0.4);
+	}
+
+	.markdown-body code {
+		background: rgba(185, 103, 255, 0.15);
+		color: #ff71ce;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-size: 0.9em;
+	}
+
+	.markdown-body pre {
+		background: #120029;
+		border: 1px solid #ff71ce;
+		border-radius: 8px;
+		padding: 16px;
+		box-shadow: 0 0 12px rgba(255, 113, 206, 0.3);
+		overflow-x: auto;
+	}
+
+	.markdown-body pre code {
+		background: none;
+		color: #e8c4f0;
+		padding: 0;
+		border-radius: 0;
+	}
+
+	.markdown-body blockquote {
+		border-left: 4px solid transparent;
+		border-image: linear-gradient(to bottom, #ff71ce, #01cdfe) 1;
+		background: rgba(255, 113, 206, 0.08);
+		padding: 12px 20px;
+		margin: 16px 0;
+		color: #e8c4f0;
+	}
+
+	.markdown-body table {
+		border-collapse: separate;
+		border-spacing: 0;
+		border: 1px solid #ff71ce;
+		border-radius: 8px;
+		overflow: hidden;
+		width: 100%;
+		margin: 16px 0;
+	}
+
+	.markdown-body thead th {
+		background: linear-gradient(135deg, #ff71ce, #b967ff);
+		color: #fff;
+		padding: 10px 14px;
+		font-weight: 600;
+		text-align: left;
+	}
+
+	.markdown-body tbody td {
+		padding: 10px 14px;
+		border-top: 1px solid rgba(255, 113, 206, 0.2);
+	}
+
+	.markdown-body hr {
+		border: none;
+		height: 2px;
+		background: linear-gradient(to right, #ff71ce, #01cdfe, #b967ff);
+		box-shadow: 0 0 8px rgba(255, 113, 206, 0.5);
+		margin: 32px 0;
+	}
+
+	.markdown-body ul {
+		list-style: disc;
+	}
+
+	.markdown-body ul ::marker {
+		color: #ff71ce;
+	}
+
+	.markdown-body ol ::marker {
+		color: #01cdfe;
+	}
+
+	.markdown-body img {
+		border-radius: 8px;
+		max-width: 100%;
+	}
+
+	.shiki,
+	.shiki span {
+		color: var(--shiki-light, inherit) !important;
+		background-color: var(--shiki-light-bg, transparent) !important;
+	}
+
+	.shiki {
+		--shiki-light: #e8c4f0;
+		--shiki-light-bg: #120029;
+	}
+
+	/* keywords */
+	.shiki .token.keyword,
+	.shiki span[style*="--shiki-light:#D73A49"],
+	.shiki span[style*="--shiki-light:#CF222E"] {
+		--shiki-light: #ff71ce !important;
+	}
+
+	/* strings */
+	.shiki .token.string,
+	.shiki span[style*="--shiki-light:#032F62"],
+	.shiki span[style*="--shiki-light:#0A3069"] {
+		--shiki-light: #01cdfe !important;
+	}
+
+	/* comments */
+	.shiki .token.comment,
+	.shiki span[style*="--shiki-light:#6A737D"],
+	.shiki span[style*="--shiki-light:#57606A"] {
+		--shiki-light: #6a5a8a !important;
+	}
+
+	/* functions */
+	.shiki .token.function,
+	.shiki span[style*="--shiki-light:#6F42C1"],
+	.shiki span[style*="--shiki-light:#8250DF"] {
+		--shiki-light: #b967ff !important;
+	}
+}

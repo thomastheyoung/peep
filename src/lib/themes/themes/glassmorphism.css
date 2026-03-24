@@ -1,0 +1,201 @@
+@layer theme {
+	.app {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: #f0f0f0;
+		font-family: system-ui, -apple-system, sans-serif;
+		--md-accent: #a8d8ff;
+	}
+
+	/* Markdown styling */
+	.markdown-body {
+		max-width: var(--md-content-width, 800px);
+		font-size: 16px;
+	}
+
+	.markdown-body h1 {
+		font-weight: 300;
+		font-size: 36px;
+		color: #ffffff;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+		padding-bottom: 12px;
+		margin-top: 48px;
+		margin-bottom: 24px;
+		line-height: 1.2;
+	}
+
+	.markdown-body h2 {
+		font-weight: 400;
+		font-size: 28px;
+		color: #f0f0f0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+		padding-bottom: 8px;
+		margin-top: 40px;
+		margin-bottom: 16px;
+		line-height: 1.3;
+	}
+
+	.markdown-body h3 {
+		font-weight: 500;
+		font-size: 22px;
+		color: #e8e8e8;
+		margin-top: 32px;
+	}
+
+	.markdown-body h4 {
+		font-weight: 500;
+		font-size: 18px;
+		color: #e0e0e0;
+	}
+
+	.markdown-body p {
+		color: #f0f0f0;
+		line-height: 1.7;
+	}
+
+	.markdown-body strong {
+		color: #ffffff;
+		font-weight: 600;
+	}
+
+	.markdown-body em {
+		color: #e0e0e0;
+	}
+
+	.markdown-body a {
+		color: #a8d8ff;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		text-decoration-thickness: 1px;
+	}
+
+	.markdown-body a:hover {
+		color: #c0e8ff;
+		text-shadow: 0 0 12px rgba(168, 216, 255, 0.6);
+		text-decoration-thickness: 2px;
+	}
+
+	.markdown-body code {
+		background: rgba(255, 255, 255, 0.15);
+		color: #e0e0e0;
+		border-radius: 8px;
+		padding: 2px 8px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		backdrop-filter: blur(4px);
+	}
+
+	.markdown-body pre {
+		background: rgba(0, 0, 0, 0.3);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 16px;
+		padding: 24px;
+		margin: 24px 0;
+		backdrop-filter: blur(12px);
+	}
+
+	.markdown-body pre code {
+		background: none;
+		border: none;
+		border-radius: 0;
+		padding: 0;
+		color: #e0e0e0;
+		backdrop-filter: none;
+	}
+
+	.markdown-body blockquote {
+		border-left: 3px solid rgba(168, 216, 255, 0.5);
+		margin: 24px 0;
+		padding: 16px 24px;
+		background: rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+		backdrop-filter: blur(8px);
+	}
+
+	.markdown-body blockquote p {
+		margin-bottom: 0;
+		color: #e0e0e0;
+	}
+
+	.markdown-body table {
+		border-collapse: separate;
+		border-spacing: 0;
+		margin: 24px 0;
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: 12px;
+		overflow: hidden;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		backdrop-filter: blur(8px);
+	}
+
+	.markdown-body thead {
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.markdown-body th {
+		font-weight: 500;
+		font-size: 14px;
+		padding: 12px 16px;
+		color: #ffffff;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	}
+
+	.markdown-body td {
+		padding: 10px 16px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.markdown-body tbody tr:hover {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.markdown-body hr {
+		border: none;
+		height: 1px;
+		background: linear-gradient(
+			to right,
+			transparent,
+			rgba(255, 255, 255, 0.3),
+			transparent
+		);
+		margin: 40px 0;
+	}
+
+	.markdown-body ul {
+		padding-left: 24px;
+	}
+
+	.markdown-body ul li::marker {
+		color: #a8d8ff;
+	}
+
+	.markdown-body ol li::marker {
+		color: #a8d8ff;
+		font-weight: 500;
+	}
+
+	.markdown-body img {
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+	}
+
+	.markdown-body ::selection {
+		background: rgba(168, 216, 255, 0.4);
+		color: #ffffff;
+	}
+
+	/* Shiki syntax tokens */
+	.shiki,
+	.shiki span {
+		--shiki-foreground: #e0e0e0;
+		--shiki-background: rgba(0, 0, 0, 0.3);
+		--shiki-token-constant: #a8d8ff;
+		--shiki-token-string: #a8d8ff;
+		--shiki-token-comment: rgba(200, 200, 200, 0.5);
+		--shiki-token-keyword: #c8a0ff;
+		--shiki-token-parameter: #ffa8d8;
+		--shiki-token-function: #f0d0ff;
+		--shiki-token-string-expression: #a8d8ff;
+		--shiki-token-punctuation: #e0e0e0;
+		--shiki-token-link: #a8d8ff;
+	}
+}

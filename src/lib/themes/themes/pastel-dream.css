@@ -1,0 +1,223 @@
+@layer theme {
+	.app {
+		background: #fef9ff;
+		color: #4a3f6b;
+		font-family: system-ui, -apple-system, sans-serif;
+		--md-accent: #b388ff;
+	}
+
+	/* Markdown styling */
+	.markdown-body {
+		max-width: var(--md-content-width, 800px);
+		font-size: 16px;
+	}
+
+	.markdown-body h1 {
+		font-weight: 700;
+		font-size: 36px;
+		background: linear-gradient(135deg, #9c6eff, #ff80ab);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		border-bottom: none;
+		padding-bottom: 0;
+		margin-top: 48px;
+		margin-bottom: 24px;
+		line-height: 1.2;
+	}
+
+	.markdown-body h2 {
+		font-weight: 600;
+		font-size: 28px;
+		color: #b388ff;
+		border-bottom: none;
+		padding-bottom: 0;
+		margin-top: 40px;
+		margin-bottom: 16px;
+		line-height: 1.3;
+	}
+
+	.markdown-body h3 {
+		font-weight: 600;
+		font-size: 22px;
+		color: #9c6eff;
+		margin-top: 32px;
+	}
+
+	.markdown-body h4 {
+		font-weight: 600;
+		font-size: 18px;
+		color: #ff80ab;
+	}
+
+	.markdown-body p {
+		color: #4a3f6b;
+		line-height: 1.8;
+	}
+
+	.markdown-body strong {
+		color: #3a2f5b;
+		font-weight: 700;
+	}
+
+	.markdown-body em {
+		color: #6a5f8b;
+	}
+
+	.markdown-body a {
+		color: #ff80ab;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		text-decoration-thickness: 2px;
+		font-weight: 600;
+	}
+
+	.markdown-body a:hover {
+		color: #e060a0;
+		text-decoration-color: #b388ff;
+	}
+
+	.markdown-body code {
+		background: #fce4ec;
+		color: #6a3d6b;
+		border-radius: 12px;
+		padding: 2px 8px;
+		font-size: 0.9em;
+	}
+
+	.markdown-body pre {
+		background: #f3e5f5;
+		border: 2px solid #e1bee7;
+		border-radius: 20px;
+		padding: 24px;
+		margin: 24px 0;
+	}
+
+	.markdown-body pre code {
+		background: none;
+		border-radius: 0;
+		padding: 0;
+		color: #4a3f6b;
+	}
+
+	.markdown-body blockquote {
+		border-left: 4px solid #b388ff;
+		margin: 24px 0;
+		padding: 16px 24px;
+		background: #f3e5f5;
+		border-radius: 16px;
+	}
+
+	.markdown-body blockquote p {
+		margin-bottom: 0;
+		color: #6a5f8b;
+	}
+
+	.markdown-body table {
+		border-collapse: separate;
+		border-spacing: 0;
+		margin: 24px 0;
+		border-radius: 16px;
+		overflow: hidden;
+		border: 2px solid #e1bee7;
+	}
+
+	.markdown-body thead {
+		background: linear-gradient(135deg, #b388ff, #ff80ab);
+	}
+
+	.markdown-body th {
+		font-weight: 600;
+		font-size: 14px;
+		padding: 12px 16px;
+		color: #ffffff;
+		border: none;
+	}
+
+	.markdown-body td {
+		padding: 10px 16px;
+		border-bottom: 1px solid #f3e5f5;
+		color: #4a3f6b;
+	}
+
+	.markdown-body tbody tr:nth-child(even) {
+		background: #fef3ff;
+	}
+
+	.markdown-body tbody tr:hover {
+		background: #f3e5f5;
+	}
+
+	.markdown-body hr {
+		border: none;
+		height: 3px;
+		background: linear-gradient(to right, #b388ff, #ff80ab, #82b1ff);
+		margin: 40px 0;
+		border-radius: 2px;
+	}
+
+	.markdown-body ul {
+		list-style: none;
+		padding-left: 24px;
+	}
+
+	.markdown-body ul li {
+		position: relative;
+		padding-left: 8px;
+	}
+
+	.markdown-body ul li::before {
+		content: "";
+		position: absolute;
+		left: -16px;
+		top: 0.55em;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #b388ff;
+	}
+
+	.markdown-body ul li:nth-child(4n + 2)::before {
+		background: #ff80ab;
+	}
+
+	.markdown-body ul li:nth-child(4n + 3)::before {
+		background: #82b1ff;
+	}
+
+	.markdown-body ul li:nth-child(4n + 4)::before {
+		background: #6bcb77;
+	}
+
+	.markdown-body ol li::marker {
+		color: #b388ff;
+		font-weight: 700;
+	}
+
+	.markdown-body img {
+		border-radius: 20px;
+		border: 2px solid #e1bee7;
+		box-shadow: 0 4px 16px rgba(179, 136, 255, 0.15);
+	}
+
+	.markdown-body ::selection {
+		background: rgba(179, 136, 255, 0.3);
+		color: #3a2f5b;
+	}
+
+	/* Shiki syntax tokens */
+	.shiki,
+	.shiki span {
+		--shiki-foreground: #4a3f6b;
+		--shiki-background: #f3e5f5;
+		--shiki-token-constant: #ff80ab;
+		--shiki-token-string: #6bcb77;
+		--shiki-token-comment: #c9a7ff;
+		--shiki-token-keyword: #9c6eff;
+		--shiki-token-parameter: #ff80ab;
+		--shiki-token-function: #ff80ab;
+		--shiki-token-string-expression: #6bcb77;
+		--shiki-token-punctuation: #4a3f6b;
+		--shiki-token-link: #b388ff;
+	}
+}

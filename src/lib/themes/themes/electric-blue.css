@@ -1,0 +1,226 @@
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 500;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-500-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-weight: 600;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/ibm-plex-mono-latin-600-italic.woff2") format("woff2");
+}
+
+@layer theme {
+	.app {
+		background: #0c1222;
+		color: #c8d6e5;
+		font-family: "IBM Plex Mono", monospace;
+		--md-accent: #3b82f6;
+	}
+
+	.markdown-body {
+		max-width: var(--md-content-width, 800px);
+		font-family: "IBM Plex Mono", monospace;
+	}
+
+	.markdown-body h1 {
+		font-family: "IBM Plex Mono", monospace;
+		font-size: 2em;
+		font-weight: 600;
+		color: #3b82f6;
+		text-transform: uppercase;
+		letter-spacing: 3px;
+		border-bottom: 2px solid #3b82f6;
+		padding-bottom: 8px;
+		margin-top: 40px;
+		margin-bottom: 20px;
+	}
+
+	.markdown-body h2 {
+		font-family: "IBM Plex Mono", monospace;
+		font-size: 1.5em;
+		font-weight: 600;
+		color: #60a5fa;
+		text-transform: uppercase;
+		letter-spacing: 2px;
+		border-bottom: none;
+		margin-top: 32px;
+		margin-bottom: 16px;
+	}
+
+	.markdown-body h3 {
+		font-family: "IBM Plex Mono", monospace;
+		font-size: 1.2em;
+		font-weight: 600;
+		color: #3b82f6;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		margin-top: 28px;
+		margin-bottom: 12px;
+	}
+
+	.markdown-body strong {
+		color: #3b82f6;
+	}
+
+	.markdown-body em {
+		color: #60a5fa;
+	}
+
+	.markdown-body a {
+		color: #3b82f6;
+		text-decoration: underline;
+	}
+
+	.markdown-body a:hover {
+		color: #60a5fa;
+	}
+
+	.markdown-body code {
+		background: rgba(59, 130, 246, 0.12);
+		color: #3b82f6;
+		padding: 2px 6px;
+		border-radius: 0;
+		font-family: "IBM Plex Mono", monospace;
+		font-size: 0.9em;
+	}
+
+	.markdown-body pre {
+		background: #0a0f1e;
+		border: 1px solid #3b82f6;
+		border-radius: 0;
+		padding: 16px;
+		box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+		overflow-x: auto;
+	}
+
+	.markdown-body pre code {
+		background: none;
+		color: #10b981;
+		padding: 0;
+	}
+
+	.markdown-body blockquote {
+		border-left: 4px solid #3b82f6;
+		background: #111827;
+		padding: 12px 20px;
+		margin: 16px 0;
+		color: #60a5fa;
+	}
+
+	.markdown-body table {
+		border-collapse: collapse;
+		border: 1px solid #3b82f6;
+		width: 100%;
+		margin: 16px 0;
+	}
+
+	.markdown-body thead th {
+		background: #3b82f6;
+		color: #ffffff;
+		padding: 10px 14px;
+		font-weight: 600;
+		text-align: left;
+		font-family: "IBM Plex Mono", monospace;
+	}
+
+	.markdown-body tbody td {
+		padding: 10px 14px;
+		border-top: 1px solid rgba(59, 130, 246, 0.2);
+		border-right: 1px solid rgba(59, 130, 246, 0.2);
+	}
+
+	.markdown-body hr {
+		border: none;
+		border-top: 2px solid #3b82f6;
+		margin: 32px 0;
+	}
+
+	.markdown-body ul {
+		list-style: square;
+	}
+
+	.markdown-body ul ::marker,
+	.markdown-body ol ::marker {
+		color: #3b82f6;
+	}
+
+	.markdown-body img {
+		max-width: 100%;
+	}
+
+	.shiki,
+	.shiki span {
+		color: var(--shiki-light, inherit) !important;
+		background-color: var(--shiki-light-bg, transparent) !important;
+	}
+
+	.shiki {
+		--shiki-light: #c8d6e5;
+		--shiki-light-bg: #0a0f1e;
+	}
+
+	/* keywords */
+	.shiki .token.keyword,
+	.shiki span[style*="--shiki-light:#D73A49"],
+	.shiki span[style*="--shiki-light:#CF222E"] {
+		--shiki-light: #3b82f6 !important;
+	}
+
+	/* strings */
+	.shiki .token.string,
+	.shiki span[style*="--shiki-light:#032F62"],
+	.shiki span[style*="--shiki-light:#0A3069"] {
+		--shiki-light: #10b981 !important;
+	}
+
+	/* comments */
+	.shiki .token.comment,
+	.shiki span[style*="--shiki-light:#6A737D"],
+	.shiki span[style*="--shiki-light:#57606A"] {
+		--shiki-light: #4a5568 !important;
+	}
+
+	/* functions */
+	.shiki .token.function,
+	.shiki span[style*="--shiki-light:#6F42C1"],
+	.shiki span[style*="--shiki-light:#8250DF"] {
+		--shiki-light: #60a5fa !important;
+	}
+}
