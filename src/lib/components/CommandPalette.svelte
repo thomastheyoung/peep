@@ -1,9 +1,21 @@
 <script lang="ts">
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import type { Command } from "$lib/commands";
+	import { getTabs } from "$lib/tabs.svelte";
 	import ThemePreview from "./ThemePreview.svelte";
 
 	const palette = getCommandPalette();
+	const tabState = getTabs();
+
+	const MAX_PREVIEW_LINES = 100;
+
+	const previewMarkdown = $derived.by(() => {
+		const content = tabState.active?.content;
+		if (!content) return undefined;
+		const lines = content.split("\n");
+		if (lines.length <= MAX_PREVIEW_LINES) return content;
+		return lines.slice(0, MAX_PREVIEW_LINES).join("\n");
+	});
 
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLDivElement | undefined = $state();
@@ -166,7 +178,7 @@
 
 				{#if isThemePanel && previewThemeId}
 					<div class="theme-preview-pane">
-						<ThemePreview themeId={previewThemeId} />
+						<ThemePreview themeId={previewThemeId} markdown={previewMarkdown} />
 					</div>
 				{/if}
 			</div>
@@ -274,11 +286,11 @@
 	}
 
 	.palette-wide .list {
-		flex: 46;
+		flex: 30;
 	}
 
 	.palette-wide .theme-preview-pane {
-		flex: 60;
+		flex: 70;
 	}
 
 	.palette-body {

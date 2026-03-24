@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { themes } from "$lib/themes/registry";
+	import { renderMarkdown } from "$lib/markdown";
 	import baseCssRaw from "$lib/themes/base.css?raw";
 
-	let { themeId }: { themeId: string } = $props();
+	let { themeId, markdown }: { themeId: string; markdown?: string } = $props();
 
 	let hostEl: HTMLDivElement | undefined = $state();
 	let shadow: ShadowRoot | undefined;
-	let styleEl: HTMLStyleElement | undefined;
+	let styleEl: HTMLStyleElement | undefined = $state();
+	let contentEl: HTMLDivElement | undefined = $state();
 
 	const cssCache = new Map<string, string>();
 
@@ -26,71 +28,67 @@
 		}
 	`;
 
-	function buildSampleDom(): DocumentFragment {
-		const fragment = document.createDocumentFragment();
-		const app = document.createElement("div");
-		app.className = "app";
-		const body = document.createElement("div");
-		body.className = "markdown-body";
+	// Fallback when no document is open
+	const SAMPLE_HTML = `<h1>Heading</h1>
+<p>Body text with a <a href="#">hyperlink</a> and some <strong>bold words</strong> in a paragraph.</p>
+<blockquote><p>A blockquote adds emphasis to a passage.</p></blockquote>
+<hr>
+<pre><code>const theme = "preview";</code></pre>
+<ul><li>List item one</li><li>List item <a href="#">with link</a></li></ul>`;
 
-		const h1 = document.createElement("h1");
-		h1.textContent = "Heading";
-
-		const p = document.createElement("p");
-		p.append("Body text with a ");
-		const link1 = document.createElement("a");
-		link1.href = "#";
-		link1.textContent = "hyperlink";
-		p.append(link1);
-		p.append(" and some ");
-		const strong = document.createElement("strong");
-		strong.textContent = "bold words";
-		p.append(strong);
-		p.append(" in a paragraph.");
-
-		const bq = document.createElement("blockquote");
-		const bqp = document.createElement("p");
-		bqp.textContent = "A blockquote adds emphasis to a passage.";
-		bq.appendChild(bqp);
-
-		const hr = document.createElement("hr");
-
-		const pre = document.createElement("pre");
-		const code = document.createElement("code");
-		code.textContent = 'const theme = "preview";';
-		pre.appendChild(code);
-
-		const ul = document.createElement("ul");
-		const li1 = document.createElement("li");
-		li1.textContent = "List item one";
-		const li2 = document.createElement("li");
-		li2.append("List item ");
-		const link2 = document.createElement("a");
-		link2.href = "#";
-		link2.textContent = "with link";
-		li2.append(link2);
-		ul.append(li1, li2);
-
-		body.append(h1, p, bq, hr, pre, ul);
-		app.appendChild(body);
-		fragment.appendChild(app);
-		return fragment;
+	function setContent(el: HTMLDivElement, html: string) {
+		// Safe: HTML comes from our own renderMarkdown pipeline (marked + shiki)
+		// operating on local files in a desktop app. Shadow DOM provides isolation.
+		el.innerHTML = html;
 	}
 
+	// Set up shadow DOM structure (runs once)
 	$effect(() => {
 		if (!hostEl) return;
+		if (shadow) return;
 
-		if (!shadow) {
-			shadow = hostEl.attachShadow({ mode: "open" });
-			styleEl = document.createElement("style");
-			shadow.appendChild(styleEl);
-			shadow.appendChild(buildSampleDom());
+		shadow = hostEl.attachShadow({ mode: "open" });
+		styleEl = document.createElement("style");
+		shadow.appendChild(styleEl);
+
+		const app = document.createElement("div");
+		app.className = "app";
+		contentEl = document.createElement("div");
+		contentEl.className = "markdown-body";
+		setContent(contentEl, SAMPLE_HTML);
+		app.appendChild(contentEl);
+		shadow.appendChild(app);
+	});
+
+	// Render markdown content (reacts to markdown prop changes)
+	$effect(() => {
+		if (!contentEl) return;
+		const src = markdown;
+
+		if (!src) {
+			setContent(contentEl, SAMPLE_HTML);
+			return;
 		}
+
+		let cancelled = false;
+		renderMarkdown(src).then(({ html }) => {
+			if (cancelled) return;
+			if (contentEl) setContent(contentEl, html);
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Load theme CSS (reacts to themeId changes)
+	$effect(() => {
+		if (!styleEl) return;
 
 		const id = themeId;
 		const cached = cssCache.get(id);
 		if (cached) {
-			styleEl!.textContent = cached;
+			styleEl.textContent = cached;
 			return;
 		}
 
@@ -102,7 +100,7 @@
 			if (cancelled) return;
 			const combined = baseCssRaw + "\n" + themeCss + "\n" + PREVIEW_OVERRIDES;
 			cssCache.set(id, combined);
-			if (themeId === id) styleEl!.textContent = combined;
+			if (styleEl && themeId === id) styleEl.textContent = combined;
 		});
 
 		return () => {
