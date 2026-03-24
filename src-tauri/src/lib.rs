@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, RunEvent};
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
 
@@ -384,6 +384,19 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Opened { urls } = event {
+                for url in urls {
+                    if url.scheme() == "file" {
+                        if let Ok(path) = url.to_file_path() {
+                            if path.is_file() && is_markdown_file(&path) {
+                                let _ = app.emit("open-file", path.to_string_lossy().into_owned());
+                            }
+                        }
+                    }
+                }
+            }
+        });
 }
