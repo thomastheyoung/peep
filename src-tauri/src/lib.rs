@@ -388,19 +388,15 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Opened { urls } = event {
-                println!("[open] RunEvent::Opened with {} urls", urls.len());
                 for url in urls {
-                    println!("[open] url: {url}");
                     if url.scheme() == "file" {
                         if let Ok(path) = url.to_file_path() {
-                            println!("[open] path: {path:?}, is_file: {}, is_markdown: {}", path.is_file(), is_markdown_file(&path));
                             if path.is_file() && is_markdown_file(&path) {
                                 let path_str = path.to_string_lossy().into_owned();
-                                let state = app.state::<AppState>();
-                                if let Ok(mut initial) = state.initial_files.lock() {
-                                    initial.push(path_str.clone());
-                                }
-                                let _ = app.emit("open-file", path_str);
+                                let handle = app.clone();
+                                std::thread::spawn(move || {
+                                    let _ = handle.emit_to("main", "open-file", &path_str);
+                                });
                             }
                         }
                     }
