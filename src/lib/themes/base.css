@@ -202,6 +202,80 @@
 		accent-color: var(--md-accent, #58a6ff);
 	}
 
+	/* Copy-code button */
+	.markdown-body .copy-code-btn {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: none;
+		border-radius: 6px;
+		background: color-mix(in srgb, currentColor 10%, transparent);
+		color: inherit;
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 0.15s ease, background 0.15s ease;
+	}
+
+	.markdown-body pre:hover .copy-code-btn {
+		opacity: 0.6;
+	}
+
+	.markdown-body .copy-code-btn:hover {
+		opacity: 1 !important;
+		background: color-mix(in srgb, currentColor 18%, transparent);
+	}
+
+	.markdown-body .copy-code-btn.copied {
+		opacity: 1 !important;
+		color: #22c55e;
+	}
+
+	/* movingicons Copy animation */
+	.markdown-body .copy-code-btn .copy-rect,
+	.markdown-body .copy-code-btn .copy-path {
+		transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.markdown-body .copy-code-btn:hover .copy-rect {
+		transform: translate(-3px, -3px);
+	}
+
+	.markdown-body .copy-code-btn:hover .copy-path {
+		transform: translate(3px, 3px);
+	}
+
+	/* movingicons CopyCheck animation */
+	.markdown-body .copy-code-btn .check-path {
+		stroke-dasharray: 9;
+		stroke-dashoffset: 9;
+		opacity: 0;
+	}
+
+	.markdown-body .copy-code-btn.copied .check-path {
+		animation: copy-check 0.5s ease-out forwards;
+	}
+
+	@keyframes copy-check {
+		0% {
+			stroke-dashoffset: 9;
+			opacity: 0;
+		}
+		33% {
+			stroke-dashoffset: 9;
+			opacity: 0;
+		}
+		100% {
+			stroke-dashoffset: 0;
+			opacity: 1;
+		}
+	}
+
 	/* Selection */
 	.markdown-body ::selection {
 		background: color-mix(in oklab, var(--md-accent, #58a6ff) 30%, transparent);

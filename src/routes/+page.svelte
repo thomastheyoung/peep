@@ -13,6 +13,7 @@
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import { buildCommands } from "$lib/commands";
+	import { copyCode } from "$lib/copy-code";
 	import "$lib/themes/base.css";
 
 	const tabs = getTabs();
@@ -253,7 +254,7 @@
 
 	<main class="content" style:zoom={prefs.zoomLevel}>
 		{#if tabs.active}
-			<article class="markdown-body">
+			<article class="markdown-body" use:copyCode>
 				{@html tabs.active.rendered}
 			</article>
 		{:else}
