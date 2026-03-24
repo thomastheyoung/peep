@@ -20,10 +20,13 @@ Files are live-reloaded when they change on disk. If `peep` is already running, 
 ## Features
 
 - **Live reload** — files update instantly on save via filesystem watching
-- **22 built-in themes** — from GitHub Dark to Retro Terminal, switchable in preferences
+- **22 built-in themes** — from GitHub Dark to Retro Terminal, with live preview
+- **Command palette** — Cmd+K for quick access to all settings and actions
+- **Typography controls** — font weight, letter spacing, and line height
 - **Zoom** — Cmd+=/Cmd+- or View menu
-- **Tabbed interface** — open multiple files, middle-click or Cmd+W to close
+- **Tabbed interface** — open multiple files, cycle with Cmd+[/], middle-click or Cmd+W to close
 - **Content width** — auto (reading-optimized), wide, or full
+- **Copy code** — one-click copy button on code blocks
 - **Syntax highlighting** — 17 languages via Shiki with CSS variables theming
 - **Single instance** — second launch passes files to the running window
 - **Window state** — remembers position and size across sessions
@@ -32,9 +35,12 @@ Files are live-reloaded when they change on disk. If `peep` is already running, 
 
 | Shortcut | Action |
 |----------|--------|
+| Cmd+K | Command palette |
 | Cmd+O | Open file dialog |
 | Cmd+W | Close current tab |
 | Cmd+, | Toggle preferences |
+| Cmd+] / Cmd+Right | Next tab |
+| Cmd+[ / Cmd+Left | Previous tab |
 | Cmd+= | Zoom in |
 | Cmd+- | Zoom out |
 | Cmd+0 | Reset zoom |

@@ -42,9 +42,14 @@ pnpm storybook
 - **Single page app** — SvelteKit with `adapter-static`, SSR disabled (`+layout.ts`)
 - `src/lib/markdown.ts` — renders markdown via `marked` with `shiki` syntax highlighting. Shiki uses a CSS variables theme (not hardcoded themes) so each theme controls code colors via CSS custom properties. Highlighter is lazily initialized as a module-level singleton. Render generation tracking prevents stale async renders from overwriting newer content
 - `src/lib/tabs.svelte.ts` — tab state management using Svelte 5 runes (`$state`). Module-level singleton exported via `getTabs()` factory returning a reactive object
-- `src/lib/preferences.svelte.ts` — unified preferences state: theme selection, content width (auto/wide/full), zoom level. Persisted to localStorage. Exported via `getPreferences()` factory
-- `src/lib/components/Preferences.svelte` — modal preferences panel (Cmd+,) with theme grid and content width options
-- `src/routes/+page.svelte` — the entire app UI: titlebar with draggable region (macOS overlay titlebar), tab bar with keyboard navigation and middle-click close, markdown content area, empty state with open-file prompt. File change events are debounced at 150ms
+- `src/lib/preferences.svelte.ts` — unified preferences state with settings registry pattern. Manages theme, content width (auto/wide/full), zoom, font weight, letter spacing, and line height. The `settings` getter returns a `SettingDef[]` array (choice or range types) that drives both the Preferences panel and the command palette — single source of truth. Persisted to localStorage. Exported via `getPreferences()` factory
+- `src/lib/commands.ts` — builds the command list for the palette from settings registry + app actions (open file, close tab). Supports drill-in children (e.g. theme picker with color swatches)
+- `src/lib/command-palette.svelte.ts` — reactive state for the command palette: open/close, query filtering, selection index, navigation stack for drill-in levels. Exported via `getCommandPalette()` factory
+- `src/lib/copy-code.ts` — Svelte action that adds copy-to-clipboard buttons to `<pre>` blocks in rendered markdown. Uses inline SVG icons with animated check feedback
+- `src/lib/components/Preferences.svelte` — 2-column settings panel (Cmd+,) with section navigation (appearance, layout, font) and live controls for all settings
+- `src/lib/components/CommandPalette.svelte` — Cmd+K command palette with fuzzy search, keyboard navigation, drill-in sub-lists, and live theme preview via Shadow DOM
+- `src/lib/components/ThemePreview.svelte` — renders a miniature theme preview inside a Shadow DOM to isolate theme CSS from the main document
+- `src/routes/+page.svelte` — the entire app UI: titlebar with draggable region (macOS overlay titlebar), tab bar with keyboard navigation and middle-click close, markdown content area with copy-code action, empty state with open-file prompt. File change events are debounced at 150ms
 
 ### Theme system (`src/lib/themes/`)
 - `types.ts` — `ThemeMeta` interface: id, name, preview colors, lazy `load()` function
@@ -59,10 +64,13 @@ pnpm storybook
 - `zoom` (backend -> frontend): `"in"` / `"out"` / `"reset"`, triggered by native View menu
 
 ### Keyboard shortcuts
+- `Cmd+K` — toggle command palette
 - `Cmd+O` — open file dialog (uses `@tauri-apps/plugin-dialog`)
 - `Cmd+W` — close active tab (unwatches file)
 - `Cmd+,` — toggle preferences panel
 - `Cmd+=` / `Cmd+-` / `Cmd+0` — zoom (handled via native menu accelerators)
+- `Cmd+]` / `Cmd+ArrowRight` — next tab
+- `Cmd+[` / `Cmd+ArrowLeft` — previous tab
 - Arrow keys — navigate tabs when tablist is focused
 
 ## Key dependencies
