@@ -1,4 +1,4 @@
-# md
+# peep
 
 A fast, themeable desktop markdown viewer built with Tauri 2 and Svelte 5.
 
@@ -6,16 +6,16 @@ A fast, themeable desktop markdown viewer built with Tauri 2 and Svelte 5.
 
 ```bash
 # Open a file
-md README.md
+peep README.md
 
 # Open multiple files
-md file1.md file2.md
+peep file1.md file2.md
 
 # Open all markdown files in a directory
-md docs/
+peep docs/
 ```
 
-Files are live-reloaded when they change on disk. If `md` is already running, new files open as tabs in the existing window.
+Files are live-reloaded when they change on disk. If `peep` is already running, new files open as tabs in the existing window.
 
 ## Features
 

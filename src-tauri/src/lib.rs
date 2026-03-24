@@ -205,7 +205,7 @@ pub fn run() {
 
             let app_menu = Submenu::with_items(
                 handle,
-                "md",
+                "peep",
                 true,
                 &[
                     &PredefinedMenuItem::about(handle, None, None)?,
