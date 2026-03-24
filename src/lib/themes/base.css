@@ -6,8 +6,10 @@
 		max-width: var(--md-content-width, 780px);
 		margin: 0 auto;
 		padding: 32px 40px 80px;
-		line-height: 1.7;
+		line-height: var(--md-line-height, 1.7);
 		font-size: 15px;
+		font-weight: var(--md-font-weight, 400);
+		letter-spacing: var(--md-letter-spacing, 0em);
 		text-wrap: pretty;
 		hanging-punctuation: first allow-end last;
 	}

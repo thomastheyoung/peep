@@ -1,4 +1,5 @@
-import type { getPreferences, ContentWidth } from "./preferences.svelte";
+import type { getPreferences } from "./preferences.svelte";
+import type { SettingDef, RangeSetting } from "./preferences.svelte";
 import type { getTabs } from "./tabs.svelte";
 
 export interface Command {
@@ -25,72 +26,83 @@ interface CommandContext {
 	closeTab: (index: number) => void;
 }
 
-const widthOptions: { value: ContentWidth; label: string }[] = [
-	{ value: "auto", label: "Auto — optimized for reading" },
-	{ value: "wide", label: "Wide — more room for code" },
-	{ value: "full", label: "Full — entire window width" },
+/** Generate all discrete steps for a range setting */
+function rangeSteps(s: RangeSetting): number[] {
+	const steps: number[] = [];
+	for (let v = s.min; v <= s.max + s.step / 2; v += s.step) {
+		steps.push(Math.round(v * 1000) / 1000);
+	}
+	return steps;
+}
+
+function commandFromSetting(setting: SettingDef): Command {
+	if (setting.type === "choice") {
+		const current = setting.options.find((o) => o.value === setting.value);
+		return {
+			id: setting.id,
+			label: `${setting.label}...`,
+			keywords: setting.keywords,
+			detail: current?.label,
+			children: () =>
+				setting.options.map((o) => ({
+					id: `${setting.id}:${o.value}`,
+					label: o.label,
+					swatches: o.swatches,
+					detail: setting.value === o.value ? "✓" : undefined,
+					action: () => setting.select(o.value),
+				})),
+		};
+	}
+
+	// Range → drill-in showing discrete steps
+	return {
+		id: setting.id,
+		label: `${setting.label}...`,
+		keywords: setting.keywords,
+		detail: setting.format(setting.value),
+		children: () =>
+			rangeSteps(setting).map((v) => ({
+				id: `${setting.id}:${v}`,
+				label: setting.format(v),
+				detail: v === setting.value ? "✓" : undefined,
+				action: () => setting.set(v),
+			})),
+	};
+}
+
+// Shortcuts for zoom — keep as top-level commands for discoverability
+const ZOOM_SHORTCUTS: { suffix: string; label: string; shortcut: string; delta: number | null }[] = [
+	{ suffix: "in", label: "Zoom in", shortcut: "⌘=", delta: 1 },
+	{ suffix: "out", label: "Zoom out", shortcut: "⌘-", delta: -1 },
+	{ suffix: "reset", label: "Reset zoom", shortcut: "⌘0", delta: null },
 ];
 
 export function buildCommands(ctx: CommandContext): Command[] {
 	const { prefs, tabs, openFileDialog, closeTab } = ctx;
 	const commands: Command[] = [];
 
-	// Theme
-	commands.push({
-		id: "theme",
-		label: "Theme...",
-		keywords: ["color", "dark", "light", "appearance"],
-		detail: prefs.theme.meta?.name,
-		children: () =>
-			prefs.theme.all.map((t) => ({
-				id: `theme:${t.id}`,
-				label: t.name,
-				swatches: t.colors,
-				detail: t.id === prefs.theme.id ? "✓" : undefined,
-				action: () => prefs.setTheme(t.id),
-			})),
-	});
+	// Generate commands from the settings registry
+	for (const setting of prefs.settings) {
+		commands.push(commandFromSetting(setting));
+	}
 
-	// Content width
-	commands.push({
-		id: "width",
-		label: "Content width...",
-		keywords: ["layout", "narrow", "wide", "full"],
-		detail: prefs.contentWidth,
-		children: () =>
-			widthOptions.map((o) => ({
-				id: `width:${o.value}`,
-				label: o.label,
-				detail: prefs.contentWidth === o.value ? "✓" : undefined,
-				action: () => prefs.setContentWidth(o.value),
-			})),
-	});
-
-	// Zoom
-	const zoomDetail = `${Math.round(prefs.zoomLevel * 100)}%`;
-	commands.push({
-		id: "zoom-in",
-		label: "Zoom in",
-		keywords: ["bigger", "larger", "magnify"],
-		shortcut: "⌘=",
-		detail: zoomDetail,
-		action: () => prefs.zoomIn(),
-	});
-	commands.push({
-		id: "zoom-out",
-		label: "Zoom out",
-		keywords: ["smaller", "reduce"],
-		shortcut: "⌘-",
-		detail: zoomDetail,
-		action: () => prefs.zoomOut(),
-	});
-	commands.push({
-		id: "zoom-reset",
-		label: "Reset zoom",
-		keywords: ["100%", "default"],
-		shortcut: "⌘0",
-		action: () => prefs.resetZoom(),
-	});
+	// Zoom shortcuts as top-level commands (in addition to the drill-in)
+	const zoomSetting = prefs.settings.find((s) => s.id === "zoom") as RangeSetting | undefined;
+	if (zoomSetting) {
+		const zoomDetail = zoomSetting.format(zoomSetting.value);
+		for (const z of ZOOM_SHORTCUTS) {
+			commands.push({
+				id: `zoom-${z.suffix}`,
+				label: z.label,
+				keywords: ["zoom"],
+				shortcut: z.shortcut,
+				detail: z.delta != null ? zoomDetail : undefined,
+				action: z.delta != null
+					? () => zoomSetting.set(zoomSetting.value + z.delta! * zoomSetting.step)
+					: () => zoomSetting.set(zoomSetting.defaultValue),
+			});
+		}
+	}
 
 	// File operations
 	commands.push({

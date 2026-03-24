@@ -190,7 +190,13 @@
 <Preferences />
 <CommandPalette />
 
-<div class="app" style:--md-content-width={prefs.contentWidthCss}>
+<div
+	class="app"
+	style:--md-content-width={prefs.contentWidthCss}
+	style:--md-font-weight={prefs.fontWeightCss}
+	style:--md-letter-spacing={prefs.letterSpacingCss}
+	style:--md-line-height={prefs.lineHeightCss}
+>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<header class="titlebar" data-tauri-drag-region onmousedown={handleTitlebarDrag}>
 		<div class="titlebar-spacer" data-tauri-drag-region></div>

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import type { Command } from "$lib/commands";
+	import { themes } from "$lib/themes/registry";
+	import baseCssRaw from "$lib/themes/base.css?raw";
 
 	const palette = getCommandPalette();
 
@@ -15,6 +17,73 @@
 		return level.commands.filter((cmd) => {
 			if (cmd.label.toLowerCase().includes(q)) return true;
 			return cmd.keywords?.some((k) => k.toLowerCase().includes(q)) ?? false;
+		});
+	});
+
+	const isThemePanel = $derived(filtered.length > 0 && filtered[0]?.swatches != null);
+
+	// Extract theme ID from selected command (format: "theme:<id>")
+	const previewThemeId = $derived.by(() => {
+		if (!isThemePanel) return undefined;
+		const cmd = filtered[palette.selectedIndex];
+		if (!cmd) return undefined;
+		const parts = cmd.id.split(":");
+		return parts.length === 2 ? parts[1] : undefined;
+	});
+
+	// Load and scope theme CSS for preview
+	let previewCss = $state("");
+	const cssCache = new Map<string, string>();
+
+	function scopeCss(raw: string): string {
+		// Extract @font-face blocks (keep global)
+		const fontFaces: string[] = [];
+		let css = raw.replace(/@font-face\s*\{[^}]*\}/g, (match) => {
+			fontFaces.push(match);
+			return "";
+		});
+
+		// Strip @layer declarations and wrappers
+		css = css.replace(/@layer\s+[\w,\s]+;/g, "");
+		css = css.replace(/@layer\s+[\w,\s]+\{/g, "");
+		// Remove matching closing braces (one per stripped @layer)
+		const stripped = (raw.match(/@layer\s+[\w,\s]+\{/g) || []).length;
+		for (let i = 0; i < stripped; i++) {
+			const idx = css.lastIndexOf("}");
+			if (idx !== -1) css = css.slice(0, idx) + css.slice(idx + 1);
+		}
+
+		// Scope selectors into preview container
+		css = css.replace(/\.app\b/g, ".theme-preview-scope");
+		css = css.replace(/\.markdown-body\b/g, ".theme-preview-scope .preview-markdown");
+		css = css.replace(/\.shiki\b/g, ".theme-preview-scope .shiki");
+
+		return fontFaces.join("\n") + "\n" + css;
+	}
+
+	const scopedBaseCss = scopeCss(baseCssRaw);
+
+	$effect(() => {
+		const id = previewThemeId;
+		if (!id) {
+			previewCss = "";
+			return;
+		}
+
+		const cached = cssCache.get(id);
+		if (cached) {
+			previewCss = cached;
+			return;
+		}
+
+		const meta = themes.find((t) => t.id === id);
+		if (!meta) return;
+
+		meta.load().then((raw) => {
+			const scoped = scopedBaseCss + "\n" + scopeCss(raw);
+			cssCache.set(id, scoped);
+			// Only apply if still the selected theme
+			if (previewThemeId === id) previewCss = scoped;
 		});
 	});
 
@@ -88,7 +157,7 @@
 {#if palette.open}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="backdrop" onclick={handleBackdropClick} onkeydown={() => {}}>
-		<div class="palette" role="dialog" aria-label="Command palette">
+		<div class="palette" class:palette-wide={isThemePanel} role="dialog" aria-label="Command palette">
 			{#if palette.depth > 1 && palette.currentLevel}
 				<div class="breadcrumb">
 					<button class="breadcrumb-back" onclick={() => palette.back()}>
@@ -114,41 +183,61 @@
 				/>
 			</div>
 
-			<div class="list" bind:this={listEl}>
-				{#each filtered as cmd, i (cmd.id)}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<div
-						class="item"
-						class:selected={i === palette.selectedIndex}
-						data-command-item
-						role="option"
-						tabindex="-1"
-						aria-selected={i === palette.selectedIndex}
-						onclick={() => handleItemClick(cmd)}
-						onmouseenter={() => handleItemHover(i)}
-					>
-						{#if cmd.swatches}
-							<span class="swatches">
-								<span class="swatch" style:background={cmd.swatches.bg}></span>
-								<span class="swatch" style:background={cmd.swatches.text}></span>
-								<span class="swatch" style:background={cmd.swatches.accent}></span>
-							</span>
-						{/if}
-						<span class="item-label">{cmd.label}</span>
-						<span class="item-spacer"></span>
-						{#if cmd.detail}
-							<span class="item-detail">{cmd.detail}</span>
-						{/if}
-						{#if cmd.shortcut}
-							<kbd class="item-shortcut">{cmd.shortcut}</kbd>
-						{/if}
-						{#if cmd.children}
-							<span class="item-arrow">›</span>
-						{/if}
+			<div class="palette-body" class:palette-body-split={isThemePanel}>
+				<div class="list" bind:this={listEl}>
+					{#each filtered as cmd, i (cmd.id)}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<div
+							class="item"
+							class:selected={i === palette.selectedIndex}
+							data-command-item
+							role="option"
+							tabindex="-1"
+							aria-selected={i === palette.selectedIndex}
+							onclick={() => handleItemClick(cmd)}
+							onmouseenter={() => handleItemHover(i)}
+						>
+							{#if cmd.swatches}
+								<span class="swatches">
+									<span class="swatch" style:background={cmd.swatches.bg}></span>
+									<span class="swatch" style:background={cmd.swatches.text}></span>
+									<span class="swatch" style:background={cmd.swatches.accent}></span>
+								</span>
+							{/if}
+							<span class="item-label">{cmd.label}</span>
+							<span class="item-spacer"></span>
+							{#if cmd.detail}
+								<span class="item-detail">{cmd.detail}</span>
+							{/if}
+							{#if cmd.shortcut}
+								<kbd class="item-shortcut">{cmd.shortcut}</kbd>
+							{/if}
+							{#if cmd.children}
+								<span class="item-arrow">›</span>
+							{/if}
+						</div>
+					{:else}
+						<div class="empty">No matching commands</div>
+					{/each}
+				</div>
+
+				{#if isThemePanel && previewCss}
+					<div class="theme-preview-pane theme-preview-scope">
+						{@html `<style>${previewCss}</style>`}
+						<div class="preview-markdown">
+							<h1>Heading</h1>
+							<p>Body text with a <a href="#preview">hyperlink</a> and some <strong>bold words</strong> in a paragraph.</p>
+							<blockquote><p>A blockquote adds emphasis to a passage.</p></blockquote>
+							<!-- svelte-ignore element_invalid_self_closing_tag -->
+							<hr />
+							<pre><code>const theme = "preview";</code></pre>
+							<ul>
+								<li>List item one</li>
+								<li>List item <a href="#preview">with link</a></li>
+							</ul>
+						</div>
 					</div>
-				{:else}
-					<div class="empty">No matching commands</div>
-				{/each}
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -169,7 +258,7 @@
 
 	.palette {
 		width: 520px;
-		max-height: 420px;
+		max-height: 480px;
 		border-radius: 12px;
 		background: rgba(30, 30, 30, 0.95);
 		border: 1px solid rgba(255, 255, 255, 0.1);
@@ -249,10 +338,25 @@
 		color: #555;
 	}
 
+	.palette-wide {
+		width: 780px;
+	}
+
+	.palette-body {
+		display: flex;
+		flex: 1;
+		overflow: hidden;
+	}
+
+	.palette-body-split {
+		border-top: none;
+	}
+
 	.list {
 		overflow-y: auto;
 		padding: 6px;
 		flex: 1;
+		min-width: 0;
 	}
 
 	.list::-webkit-scrollbar {
@@ -333,5 +437,31 @@
 		text-align: center;
 		color: #555;
 		font-size: 13px;
+	}
+
+	/* Theme preview pane */
+	.theme-preview-pane {
+		width: 300px;
+		flex-shrink: 0;
+		border-left: 1px solid rgba(255, 255, 255, 0.08);
+		overflow-y: auto;
+		overflow-x: hidden;
+		border-radius: 0 0 12px 0;
+	}
+
+	/* Override base CSS layout values for the compact preview */
+	.theme-preview-pane :global(.preview-markdown) {
+		max-width: none !important;
+		padding: 20px !important;
+		font-size: 13px !important;
+	}
+
+	.theme-preview-pane :global(.preview-markdown h1) {
+		font-size: 1.4em !important;
+		margin-top: 0 !important;
+	}
+
+	.theme-preview-pane :global(.preview-markdown pre) {
+		overflow: hidden !important;
 	}
 </style>

@@ -1,13 +1,25 @@
 <script lang="ts">
-	import { getPreferences, type ContentWidth } from "$lib/preferences.svelte";
+	import { getPreferences, settingsSections, type RangeSetting } from "$lib/preferences.svelte";
 
 	const prefs = getPreferences();
 
-	const widthOptions: { value: ContentWidth; label: string; description: string }[] = [
-		{ value: "auto", label: "Auto", description: "Optimized for reading (~80 chars)" },
-		{ value: "wide", label: "Wide", description: "More room for tables and code" },
-		{ value: "full", label: "Full", description: "Use the entire window width" },
-	];
+	const sectionSettings = $derived(
+		Object.groupBy(prefs.settings, (s) => s.section),
+	);
+
+	const currentSettings = $derived(sectionSettings[prefs.activeSection] ?? []);
+
+	const hasNonDefaultRange = $derived(
+		currentSettings.some((s) => s.type === "range" && s.value !== s.defaultValue),
+	);
+
+	function resetSection() {
+		for (const s of currentSettings) {
+			if (s.type === "range" && s.value !== s.defaultValue) {
+				s.set(s.defaultValue);
+			}
+		}
+	}
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === "Escape") {
@@ -34,42 +46,88 @@
 				</button>
 			</header>
 
-			<div class="panel-body">
-				<section class="section">
-					<h3 class="section-title">Theme</h3>
-					<div class="theme-grid">
-						{#each prefs.theme.all as theme}
-							<button
-								class="theme-card"
-								class:active={theme.id === prefs.theme.id}
-								onclick={() => prefs.setTheme(theme.id)}
-							>
-								<div class="theme-preview">
-									<span class="preview-swatch" style:background={theme.colors.bg}></span>
-									<span class="preview-swatch" style:background={theme.colors.text}></span>
-									<span class="preview-swatch" style:background={theme.colors.accent}></span>
-								</div>
-								<span class="theme-name">{theme.name}</span>
-							</button>
-						{/each}
-					</div>
-				</section>
+			<div class="panel-layout">
+				<nav class="sidebar">
+					{#each settingsSections as section (section.id)}
+						<button
+							class="sidebar-item"
+							class:active={prefs.activeSection === section.id}
+							onclick={() => prefs.setActiveSection(section.id)}
+						>
+							{section.label}
+						</button>
+					{/each}
+				</nav>
 
-				<section class="section">
-					<h3 class="section-title">Content width</h3>
-					<div class="width-options">
-						{#each widthOptions as option}
-							<button
-								class="width-option"
-								class:active={prefs.contentWidth === option.value}
-								onclick={() => prefs.setContentWidth(option.value)}
-							>
-								<span class="width-label">{option.label}</span>
-								<span class="width-desc">{option.description}</span>
-							</button>
-						{/each}
-					</div>
-				</section>
+				<div class="panel-content">
+					{#each currentSettings as setting (setting.id)}
+						<section class="section">
+							<h3 class="section-title">{setting.label}</h3>
+
+							{#if setting.type === "choice"}
+								{@const hasSwatches = setting.options.some((o) => o.swatches)}
+								{#if hasSwatches}
+									<div class="theme-grid">
+										{#each setting.options as option (option.value)}
+											<button
+												class="theme-card"
+												class:active={setting.value === option.value}
+												onclick={() => setting.select(option.value)}
+											>
+												{#if option.swatches}
+													<div class="theme-preview">
+														<span class="preview-swatch" style:background={option.swatches.bg}></span>
+														<span class="preview-swatch" style:background={option.swatches.text}></span>
+														<span class="preview-swatch" style:background={option.swatches.accent}></span>
+													</div>
+												{/if}
+												<span class="theme-name">{option.label}</span>
+											</button>
+										{/each}
+									</div>
+								{:else}
+									<div class="choice-options">
+										{#each setting.options as option (option.value)}
+											<button
+												class="choice-option"
+												class:active={setting.value === option.value}
+												onclick={() => setting.select(option.value)}
+											>
+												<span class="choice-label">{option.label}</span>
+												{#if option.description}
+													<span class="choice-desc">{option.description}</span>
+												{/if}
+											</button>
+										{/each}
+									</div>
+								{/if}
+
+							{:else if setting.type === "range"}
+								{@const range = setting as RangeSetting}
+								<div class="setting-group">
+									<div class="setting-row">
+										<span class="setting-value">{range.format(range.value)}</span>
+									</div>
+									<input
+										type="range"
+										class="slider"
+										min={range.min}
+										max={range.max}
+										step={range.step}
+										value={range.value}
+										oninput={(e) => range.set(Number(e.currentTarget.value))}
+									/>
+								</div>
+							{/if}
+						</section>
+					{/each}
+
+					{#if hasNonDefaultRange}
+						<button class="reset-btn" onclick={resetSection}>
+							Reset to defaults
+						</button>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
@@ -89,7 +147,7 @@
 	}
 
 	.panel {
-		width: 480px;
+		width: 640px;
 		max-height: 80vh;
 		border-radius: 12px;
 		background: rgba(30, 30, 30, 0.95);
@@ -100,7 +158,6 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		/* Consistent styling, independent of theme */
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
 		font-size: 13px;
 		color: #e0e0e0;
@@ -147,7 +204,54 @@
 		transition: none;
 	}
 
-	.panel-body {
+	/* Two-column layout */
+	.panel-layout {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+	}
+
+	.sidebar {
+		width: 160px;
+		flex-shrink: 0;
+		padding: 12px;
+		border-right: 1px solid rgba(255, 255, 255, 0.08);
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.sidebar-item {
+		display: block;
+		width: 100%;
+		padding: 7px 12px;
+		border: none;
+		border-radius: 6px;
+		background: transparent;
+		color: #aaa;
+		font-family: inherit;
+		font-size: 13px;
+		font-weight: 400;
+		text-align: left;
+		cursor: pointer;
+		transition: background-color 0.1s;
+	}
+
+	.sidebar-item:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: #e0e0e0;
+		transition: none;
+	}
+
+	.sidebar-item.active {
+		background: rgba(255, 255, 255, 0.1);
+		color: #f0f0f0;
+		font-weight: 500;
+	}
+
+	.panel-content {
+		flex: 1;
+		min-width: 0;
 		padding: 20px;
 		overflow-y: auto;
 		display: flex;
@@ -164,10 +268,10 @@
 		color: #888;
 	}
 
-	/* Theme grid */
+	/* Theme grid (choice with swatches) */
 	.theme-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 		gap: 8px;
 	}
 
@@ -221,14 +325,14 @@
 		white-space: nowrap;
 	}
 
-	/* Width options */
-	.width-options {
+	/* Choice options (no swatches) */
+	.choice-options {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
 
-	.width-option {
+	.choice-option {
 		display: flex;
 		align-items: baseline;
 		gap: 10px;
@@ -251,24 +355,86 @@
 		text-transform: none;
 	}
 
-	.width-option:hover {
+	.choice-option:hover {
 		background: rgba(255, 255, 255, 0.06);
 		transition: none;
 	}
 
-	.width-option.active {
+	.choice-option.active {
 		border-color: rgba(255, 255, 255, 0.25);
 		background: rgba(255, 255, 255, 0.08);
 	}
 
-	.width-label {
+	.choice-label {
 		font-weight: 500;
 		color: #e0e0e0;
 		min-width: 40px;
 	}
 
-	.width-desc {
+	.choice-desc {
 		font-size: 12px;
 		color: #888;
+	}
+
+	/* Range settings */
+	.setting-group {
+		margin-bottom: 4px;
+	}
+
+	.setting-row {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 8px;
+	}
+
+	.setting-value {
+		font-size: 12px;
+		color: #888;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.slider {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 100%;
+		height: 4px;
+		border-radius: 2px;
+		background: rgba(255, 255, 255, 0.12);
+		outline: none;
+	}
+
+	.slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: #e0e0e0;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	}
+
+	.slider::-webkit-slider-thumb:hover {
+		background: #fff;
+	}
+
+	.reset-btn {
+		padding: 6px 14px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 6px;
+		background: transparent;
+		color: #aaa;
+		font-family: inherit;
+		font-size: 12px;
+		cursor: pointer;
+		transition: background-color 0.1s;
+		align-self: flex-start;
+	}
+
+	.reset-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: #e0e0e0;
+		transition: none;
 	}
 </style>
