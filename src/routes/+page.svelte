@@ -158,11 +158,9 @@
 	<header class="titlebar" data-tauri-drag-region onmousedown={handleTitlebarDrag}>
 		<div class="titlebar-spacer" data-tauri-drag-region></div>
 		{#if tabs.items.length > 0}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<nav class="tabs" role="tablist" onkeydown={handleTabListKeydown}>
+			<div class="tabs" role="tablist" tabindex={-1} onkeydown={handleTabListKeydown}>
 				{#each tabs.items as tab, i}
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
+					<button
 						class="tab"
 						class:active={i === tabs.activeIndex}
 						onclick={() => tabs.activate(i)}
@@ -170,20 +168,29 @@
 						role="tab"
 						tabindex={i === tabs.activeIndex ? 0 : -1}
 						aria-selected={i === tabs.activeIndex}
+						type="button"
 					>
 						<span class="tab-name">{tab.filename}</span>
-						<button
+						<span
 							class="tab-close"
 							onclick={(e: MouseEvent) => {
 								e.stopPropagation();
 								closeTab(i);
 							}}
+							onkeydown={(e: KeyboardEvent) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									e.stopPropagation();
+									closeTab(i);
+								}
+							}}
 							tabindex={-1}
-							aria-label="Close {tab.filename}">&times;</button
+							role="button"
+							aria-label="Close {tab.filename}">&times;</span
 						>
-					</div>
+					</button>
 				{/each}
-			</nav>
+			</div>
 		{/if}
 	</header>
 
@@ -216,6 +223,9 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
 	}
 
 	.app {
@@ -344,6 +354,9 @@
 		flex: 1;
 		overflow-y: auto;
 		overflow-x: hidden;
+		scroll-behavior: smooth;
+		overscroll-behavior-y: contain;
+		scrollbar-gutter: stable;
 	}
 
 	.content::-webkit-scrollbar {
