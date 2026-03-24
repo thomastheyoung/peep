@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import type { Command } from "$lib/commands";
-	import { themes } from "$lib/themes/registry";
-	import baseCssRaw from "$lib/themes/base.css?raw";
+	import ThemePreview from "./ThemePreview.svelte";
 
 	const palette = getCommandPalette();
 
@@ -29,62 +28,6 @@
 		if (!cmd) return undefined;
 		const parts = cmd.id.split(":");
 		return parts.length === 2 ? parts[1] : undefined;
-	});
-
-	// Load and scope theme CSS for preview
-	let previewCss = $state("");
-	const cssCache = new Map<string, string>();
-
-	function scopeCss(raw: string): string {
-		// Extract @font-face blocks (keep global)
-		const fontFaces: string[] = [];
-		let css = raw.replace(/@font-face\s*\{[^}]*\}/g, (match) => {
-			fontFaces.push(match);
-			return "";
-		});
-
-		// Strip @layer declarations and wrappers
-		css = css.replace(/@layer\s+[\w,\s]+;/g, "");
-		css = css.replace(/@layer\s+[\w,\s]+\{/g, "");
-		// Remove matching closing braces (one per stripped @layer)
-		const stripped = (raw.match(/@layer\s+[\w,\s]+\{/g) || []).length;
-		for (let i = 0; i < stripped; i++) {
-			const idx = css.lastIndexOf("}");
-			if (idx !== -1) css = css.slice(0, idx) + css.slice(idx + 1);
-		}
-
-		// Scope selectors into preview container
-		css = css.replace(/\.app\b/g, ".theme-preview-scope");
-		css = css.replace(/\.markdown-body\b/g, ".theme-preview-scope .preview-markdown");
-		css = css.replace(/\.shiki\b/g, ".theme-preview-scope .shiki");
-
-		return fontFaces.join("\n") + "\n" + css;
-	}
-
-	const scopedBaseCss = scopeCss(baseCssRaw);
-
-	$effect(() => {
-		const id = previewThemeId;
-		if (!id) {
-			previewCss = "";
-			return;
-		}
-
-		const cached = cssCache.get(id);
-		if (cached) {
-			previewCss = cached;
-			return;
-		}
-
-		const meta = themes.find((t) => t.id === id);
-		if (!meta) return;
-
-		meta.load().then((raw) => {
-			const scoped = scopedBaseCss + "\n" + scopeCss(raw);
-			cssCache.set(id, scoped);
-			// Only apply if still the selected theme
-			if (previewThemeId === id) previewCss = scoped;
-		});
 	});
 
 	$effect(() => {
@@ -183,7 +126,7 @@
 				/>
 			</div>
 
-			<div class="palette-body" class:palette-body-split={isThemePanel}>
+			<div class="palette-body">
 				<div class="list" bind:this={listEl}>
 					{#each filtered as cmd, i (cmd.id)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -221,21 +164,9 @@
 					{/each}
 				</div>
 
-				{#if isThemePanel && previewCss}
-					<div class="theme-preview-pane theme-preview-scope">
-						{@html `<style>${previewCss}</style>`}
-						<div class="preview-markdown">
-							<h1>Heading</h1>
-							<p>Body text with a <a href="#preview">hyperlink</a> and some <strong>bold words</strong> in a paragraph.</p>
-							<blockquote><p>A blockquote adds emphasis to a passage.</p></blockquote>
-							<!-- svelte-ignore element_invalid_self_closing_tag -->
-							<hr />
-							<pre><code>const theme = "preview";</code></pre>
-							<ul>
-								<li>List item one</li>
-								<li>List item <a href="#preview">with link</a></li>
-							</ul>
-						</div>
+				{#if isThemePanel && previewThemeId}
+					<div class="theme-preview-pane">
+						<ThemePreview themeId={previewThemeId} />
 					</div>
 				{/if}
 			</div>
@@ -339,17 +270,21 @@
 	}
 
 	.palette-wide {
-		width: 780px;
+		width: 860px;
+	}
+
+	.palette-wide .list {
+		flex: 46;
+	}
+
+	.palette-wide .theme-preview-pane {
+		flex: 60;
 	}
 
 	.palette-body {
 		display: flex;
 		flex: 1;
 		overflow: hidden;
-	}
-
-	.palette-body-split {
-		border-top: none;
 	}
 
 	.list {
@@ -441,27 +376,9 @@
 
 	/* Theme preview pane */
 	.theme-preview-pane {
-		width: 300px;
-		flex-shrink: 0;
+		min-width: 0;
 		border-left: 1px solid rgba(255, 255, 255, 0.08);
-		overflow-y: auto;
-		overflow-x: hidden;
 		border-radius: 0 0 12px 0;
-	}
-
-	/* Override base CSS layout values for the compact preview */
-	.theme-preview-pane :global(.preview-markdown) {
-		max-width: none !important;
-		padding: 20px !important;
-		font-size: 13px !important;
-	}
-
-	.theme-preview-pane :global(.preview-markdown h1) {
-		font-size: 1.4em !important;
-		margin-top: 0 !important;
-	}
-
-	.theme-preview-pane :global(.preview-markdown pre) {
-		overflow: hidden !important;
+		overflow: hidden;
 	}
 </style>
