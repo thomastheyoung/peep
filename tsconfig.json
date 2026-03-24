@@ -12,7 +12,8 @@
     "moduleResolution": "bundler",
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "exclude": ["src/**/*.test.ts", "src/test-setup.ts"]
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
   // except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
   //

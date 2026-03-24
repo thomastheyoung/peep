@@ -74,7 +74,7 @@ struct AppState {
     initial_files: Mutex<Vec<String>>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct FileContent {
     path: String,
     content: String,
@@ -388,15 +388,139 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Opened { urls } = event {
+                println!("[open] RunEvent::Opened with {} urls", urls.len());
                 for url in urls {
+                    println!("[open] url: {url}");
                     if url.scheme() == "file" {
                         if let Ok(path) = url.to_file_path() {
+                            println!("[open] path: {path:?}, is_file: {}, is_markdown: {}", path.is_file(), is_markdown_file(&path));
                             if path.is_file() && is_markdown_file(&path) {
-                                let _ = app.emit("open-file", path.to_string_lossy().into_owned());
+                                let path_str = path.to_string_lossy().into_owned();
+                                let state = app.state::<AppState>();
+                                if let Ok(mut initial) = state.initial_files.lock() {
+                                    initial.push(path_str.clone());
+                                }
+                                let _ = app.emit("open-file", path_str);
                             }
                         }
                     }
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn is_markdown_file_accepts_md() {
+        assert!(is_markdown_file(&PathBuf::from("readme.md")));
+    }
+
+    #[test]
+    fn is_markdown_file_accepts_markdown() {
+        assert!(is_markdown_file(&PathBuf::from("notes.markdown")));
+    }
+
+    #[test]
+    fn is_markdown_file_rejects_txt() {
+        assert!(!is_markdown_file(&PathBuf::from("readme.txt")));
+    }
+
+    #[test]
+    fn is_markdown_file_rejects_no_extension() {
+        assert!(!is_markdown_file(&PathBuf::from("README")));
+    }
+
+    #[test]
+    fn is_markdown_file_rejects_similar_extensions() {
+        assert!(!is_markdown_file(&PathBuf::from("file.mdx")));
+        assert!(!is_markdown_file(&PathBuf::from("file.mdown")));
+    }
+
+    #[test]
+    fn is_markdown_file_handles_nested_paths() {
+        assert!(is_markdown_file(&PathBuf::from("/home/user/docs/notes.md")));
+        assert!(!is_markdown_file(&PathBuf::from("/home/user/docs/notes.rs")));
+    }
+
+    #[test]
+    fn is_markdown_file_handles_dots_in_filename() {
+        assert!(is_markdown_file(&PathBuf::from("my.notes.v2.md")));
+    }
+
+    #[test]
+    fn read_file_succeeds_for_md_file() {
+        let dir = std::env::temp_dir().join("peep_test_read");
+        let _ = fs::create_dir_all(&dir);
+        let file_path = dir.join("test.md");
+        let mut f = fs::File::create(&file_path).unwrap();
+        f.write_all(b"# Hello\nWorld").unwrap();
+
+        let result = read_file(file_path.to_string_lossy().into_owned());
+        assert!(result.is_ok());
+        let fc = result.unwrap();
+        assert_eq!(fc.content, "# Hello\nWorld");
+        assert_eq!(fc.filename, "test.md");
+        assert!(!fc.path.is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_file_rejects_non_markdown() {
+        let dir = std::env::temp_dir().join("peep_test_reject");
+        let _ = fs::create_dir_all(&dir);
+        let file_path = dir.join("test.txt");
+        let mut f = fs::File::create(&file_path).unwrap();
+        f.write_all(b"hello").unwrap();
+
+        let result = read_file(file_path.to_string_lossy().into_owned());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Only .md and .markdown"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_file_errors_for_nonexistent() {
+        let result = read_file("/tmp/nonexistent_peep_test_file.md".into());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Cannot resolve path"));
+    }
+
+    #[test]
+    fn read_file_returns_canonical_path() {
+        let dir = std::env::temp_dir().join("peep_test_canonical");
+        let _ = fs::create_dir_all(&dir);
+        let file_path = dir.join("canon.md");
+        let mut f = fs::File::create(&file_path).unwrap();
+        f.write_all(b"test").unwrap();
+
+        let result = read_file(file_path.to_string_lossy().into_owned()).unwrap();
+        // Canonical path should be absolute
+        assert!(PathBuf::from(&result.path).is_absolute());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_content_serializes_to_json() {
+        let fc = FileContent {
+            path: "/test.md".into(),
+            content: "# Hello".into(),
+            filename: "test.md".into(),
+        };
+        let json = serde_json::to_string(&fc).unwrap();
+        assert!(json.contains("\"path\":\"/test.md\""));
+        assert!(json.contains("\"content\":\"# Hello\""));
+        assert!(json.contains("\"filename\":\"test.md\""));
+    }
+
+    #[test]
+    fn allowed_extensions_contains_expected_values() {
+        assert_eq!(ALLOWED_EXTENSIONS, &["md", "markdown"]);
+    }
 }
