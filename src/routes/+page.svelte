@@ -376,9 +376,10 @@
 		flex: 1;
 		overflow-y: auto;
 		overflow-x: hidden;
-		scroll-behavior: smooth;
 		overscroll-behavior-y: contain;
 		scrollbar-gutter: stable;
+		will-change: transform;
+		contain: content;
 	}
 
 	.content::-webkit-scrollbar {
