@@ -30,17 +30,22 @@ export function getTabs() {
 		},
 		update(path: string, content: string, rendered: string) {
 			const idx = tabs.findIndex((t) => t.path === path);
-			if (idx >= 0) {
-				tabs[idx] = { ...tabs[idx], content, rendered };
-			}
+			if (idx < 0) return;
+			const existing = tabs[idx];
+			if (!existing) return;
+			tabs[idx] = { ...existing, content, rendered };
 		},
 		close(index: number) {
+			if (index < 0 || index >= tabs.length) return;
 			tabs.splice(index, 1);
-			if (activeIndex >= tabs.length) {
+			if (index < activeIndex) {
+				activeIndex--;
+			} else if (activeIndex >= tabs.length) {
 				activeIndex = Math.max(0, tabs.length - 1);
 			}
 		},
 		activate(index: number) {
+			if (index < 0 || index >= tabs.length) return;
 			activeIndex = index;
 		},
 	};

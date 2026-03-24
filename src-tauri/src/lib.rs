@@ -1,13 +1,23 @@
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
+
+fn is_markdown_file(path: &PathBuf) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| ALLOWED_EXTENSIONS.contains(&e))
+}
+
 struct AppState {
-    watched_files: Mutex<Vec<PathBuf>>,
-    _watcher: Mutex<Option<RecommendedWatcher>>,
+    watched_files: Mutex<HashSet<PathBuf>>,
+    watcher: Mutex<Option<RecommendedWatcher>>,
+    initial_files: Mutex<Vec<String>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -19,16 +29,22 @@ struct FileContent {
 
 #[tauri::command]
 fn read_file(path: String) -> Result<FileContent, String> {
-    let path_buf = PathBuf::from(&path);
-    let canonical = fs::canonicalize(&path_buf).map_err(|e| format!("Cannot resolve path: {e}"))?;
-    let content = fs::read_to_string(&canonical).map_err(|e| format!("Cannot read file: {e}"))?;
+    let canonical =
+        fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
+
+    if !is_markdown_file(&canonical) {
+        return Err("Only .md and .markdown files are supported".into());
+    }
+
+    let content =
+        fs::read_to_string(&canonical).map_err(|e| format!("Cannot read file: {e}"))?;
     let filename = canonical
         .file_name()
-        .map(|n| n.to_string_lossy().to_string())
+        .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.clone());
 
     Ok(FileContent {
-        path: canonical.to_string_lossy().to_string(),
+        path: canonical.to_string_lossy().into_owned(),
         content,
         filename,
     })
@@ -40,19 +56,29 @@ fn watch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
     let path_buf =
         fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
 
-    let mut watched = state.watched_files.lock().unwrap();
+    if !is_markdown_file(&path_buf) {
+        return Err("Only .md and .markdown files are supported".into());
+    }
+
+    let mut watched = state
+        .watched_files
+        .lock()
+        .map_err(|e| format!("State lock poisoned: {e}"))?;
     if watched.contains(&path_buf) {
         return Ok(());
     }
-    watched.push(path_buf.clone());
+    watched.insert(path_buf.clone());
     drop(watched);
 
-    let app_handle = app.clone();
+    let handle = app.clone();
     let watch_path = path_buf.clone();
 
-    let mut watcher_guard = state._watcher.lock().unwrap();
+    let mut watcher_guard = state
+        .watcher
+        .lock()
+        .map_err(|e| format!("Watcher lock poisoned: {e}"))?;
     if watcher_guard.is_none() {
-        let handle = app_handle.clone();
+        let handle = handle.clone();
         let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
                 if matches!(
@@ -63,12 +89,12 @@ fn watch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
                         if let Ok(content) = fs::read_to_string(path) {
                             let filename = path
                                 .file_name()
-                                .map(|n| n.to_string_lossy().to_string())
+                                .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_default();
                             let _ = handle.emit(
                                 "file-changed",
                                 FileContent {
-                                    path: path.to_string_lossy().to_string(),
+                                    path: path.to_string_lossy().into_owned(),
                                     content,
                                     filename,
                                 },
@@ -91,48 +117,84 @@ fn watch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn unwatch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let path_buf =
+        fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
+
+    let mut watched = state
+        .watched_files
+        .lock()
+        .map_err(|e| format!("State lock poisoned: {e}"))?;
+    watched.remove(&path_buf);
+    drop(watched);
+
+    let mut watcher_guard = state
+        .watcher
+        .lock()
+        .map_err(|e| format!("Watcher lock poisoned: {e}"))?;
+    if let Some(watcher) = watcher_guard.as_mut() {
+        let _ = watcher.unwatch(&path_buf);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
+    let state = app.state::<AppState>();
+    let mut guard = state
+        .initial_files
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    guard.drain(..).collect()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
-            watched_files: Mutex::new(Vec::new()),
-            _watcher: Mutex::new(None),
+            watched_files: Mutex::new(HashSet::new()),
+            watcher: Mutex::new(None),
+            initial_files: Mutex::new(Vec::new()),
         })
-        .invoke_handler(tauri::generate_handler![read_file, watch_file])
+        .invoke_handler(tauri::generate_handler![
+            read_file,
+            watch_file,
+            unwatch_file,
+            get_initial_files
+        ])
         .setup(|app| {
-            // Pass CLI args to the frontend via a managed state or event
             let args: Vec<String> = std::env::args().skip(1).collect();
             if !args.is_empty() {
-                let handle = app.handle().clone();
-                // Give the frontend time to mount before sending files
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                    for arg in &args {
-                        let path = if PathBuf::from(arg).is_absolute() {
-                            PathBuf::from(arg)
-                        } else {
-                            std::env::current_dir()
-                                .unwrap_or_default()
-                                .join(arg)
-                        };
-                        if let Ok(canonical) = fs::canonicalize(&path) {
-                            if canonical.is_file() {
-                                let _ = handle.emit("open-file", canonical.to_string_lossy().to_string());
-                            } else if canonical.is_dir() {
-                                // Find all .md files in directory
-                                if let Ok(entries) = fs::read_dir(&canonical) {
-                                    for entry in entries.flatten() {
-                                        let p = entry.path();
-                                        if p.extension().map(|e| e == "md" || e == "markdown").unwrap_or(false) {
-                                            let _ = handle.emit("open-file", p.to_string_lossy().to_string());
-                                        }
+                let state = app.state::<AppState>();
+                let mut initial = state
+                    .initial_files
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                for arg in &args {
+                    let path = if PathBuf::from(arg).is_absolute() {
+                        PathBuf::from(arg)
+                    } else {
+                        std::env::current_dir().unwrap_or_default().join(arg)
+                    };
+                    if let Ok(canonical) = fs::canonicalize(&path) {
+                        if canonical.is_file() && is_markdown_file(&canonical) {
+                            initial.push(canonical.to_string_lossy().into_owned());
+                        } else if canonical.is_dir() {
+                            if let Ok(entries) = fs::read_dir(&canonical) {
+                                for entry in entries.flatten() {
+                                    let p = entry.path();
+                                    if is_markdown_file(&p) {
+                                        initial.push(p.to_string_lossy().into_owned());
                                     }
                                 }
                             }
                         }
                     }
-                });
+                }
             }
             Ok(())
         })

@@ -4,33 +4,41 @@
 	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import { onMount } from "svelte";
 	import { renderMarkdown } from "$lib/markdown";
-	import { getTabs, type Tab } from "$lib/tabs.svelte";
+	import { getTabs } from "$lib/tabs.svelte";
+	import type { FileContent } from "$lib/types";
 
 	const tabs = getTabs();
 	let theme = $state<"dark" | "light">("dark");
-	let contentEl = $state<HTMLElement | null>(null);
+	let renderGeneration = 0;
 
 	function handleTitlebarDrag(e: MouseEvent) {
-		// Only drag on left-click, and only if clicking empty space (not a button/tab)
 		if (e.button !== 0) return;
-		const target = e.target as HTMLElement;
-		if (target.closest('.tab, .theme-toggle, button')) return;
+		if (!(e.target instanceof HTMLElement)) return;
+		if (e.target.closest(".tab, .theme-toggle, button")) return;
 		getCurrentWindow().startDragging();
 	}
 
 	async function openFile(path: string) {
-		const result: { path: string; content: string; filename: string } =
-			await invoke("read_file", { path });
+		try {
+			const result = await invoke<FileContent>("read_file", { path });
+			const rendered = await renderMarkdown(result.content, theme);
+			tabs.add({ ...result, rendered });
+			await invoke("watch_file", { path: result.path });
+		} catch (err) {
+			console.error(`Failed to open ${path}:`, err);
+		}
+	}
 
-		const rendered = await renderMarkdown(result.content, theme);
-		tabs.add({
-			path: result.path,
-			filename: result.filename,
-			content: result.content,
-			rendered,
-		});
-
-		await invoke("watch_file", { path: result.path });
+	async function closeTab(index: number) {
+		const tab = tabs.items[index];
+		if (!tab) return;
+		const { path } = tab;
+		tabs.close(index);
+		try {
+			await invoke("unwatch_file", { path });
+		} catch {
+			// best effort
+		}
 	}
 
 	function toggleTheme() {
@@ -39,48 +47,109 @@
 	}
 
 	async function reRenderAll() {
-		for (const tab of tabs.items) {
-			const rendered = await renderMarkdown(tab.content, theme);
-			tabs.update(tab.path, tab.content, rendered);
+		const gen = ++renderGeneration;
+		const active = tabs.active;
+
+		if (active) {
+			const rendered = await renderMarkdown(active.content, theme);
+			if (gen !== renderGeneration) return;
+			tabs.update(active.path, active.content, rendered);
 		}
+
+		await Promise.all(
+			tabs.items
+				.filter((t) => t !== active)
+				.map(async (tab) => {
+					const rendered = await renderMarkdown(tab.content, theme);
+					if (gen !== renderGeneration) return;
+					tabs.update(tab.path, tab.content, rendered);
+				}),
+		);
 	}
 
 	function handleMiddleClick(e: MouseEvent, index: number) {
 		if (e.button === 1) {
 			e.preventDefault();
-			tabs.close(index);
+			closeTab(index);
+		}
+	}
+
+	const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	function handleFileChanged(payload: FileContent) {
+		const existing = debounceTimers.get(payload.path);
+		if (existing) clearTimeout(existing);
+		debounceTimers.set(
+			payload.path,
+			setTimeout(async () => {
+				debounceTimers.delete(payload.path);
+				try {
+					const rendered = await renderMarkdown(payload.content, theme);
+					tabs.update(payload.path, payload.content, rendered);
+				} catch (err) {
+					console.error(`Failed to render ${payload.path}:`, err);
+				}
+			}, 150),
+		);
+	}
+
+	function handleTabListKeydown(e: KeyboardEvent) {
+		if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+			e.preventDefault();
+			const dir = e.key === "ArrowRight" ? 1 : -1;
+			const next =
+				(tabs.activeIndex + dir + tabs.items.length) % tabs.items.length;
+			tabs.activate(next);
+			const tablist = e.currentTarget as HTMLElement;
+			const tabEls = tablist.querySelectorAll('[role="tab"]');
+			(tabEls[next] as HTMLElement | undefined)?.focus();
+		}
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		const mod = e.metaKey || e.ctrlKey;
+		if (mod && e.key === "w" && tabs.items.length > 0) {
+			e.preventDefault();
+			closeTab(tabs.activeIndex);
 		}
 	}
 
 	onMount(() => {
-		listen<string>("open-file", async (event) => {
-			await openFile(event.payload);
+		const mq = window.matchMedia("(prefers-color-scheme: light)");
+		if (mq.matches) theme = "light";
+		const themeHandler = (e: MediaQueryListEvent) => {
+			theme = e.matches ? "light" : "dark";
+			reRenderAll();
+		};
+		mq.addEventListener("change", themeHandler);
+
+		const unlistenChanged = listen<FileContent>("file-changed", (event) => {
+			handleFileChanged(event.payload);
 		});
 
-		listen<{ path: string; content: string; filename: string }>(
-			"file-changed",
-			async (event) => {
-				const rendered = await renderMarkdown(event.payload.content, theme);
-				tabs.update(event.payload.path, event.payload.content, rendered);
-			},
-		);
+		invoke<string[]>("get_initial_files").then(async (files) => {
+			for (const path of files) {
+				await openFile(path);
+			}
+		});
 
-		// Detect system theme
-		if (
-			window.matchMedia &&
-			window.matchMedia("(prefers-color-scheme: light)").matches
-		) {
-			theme = "light";
-		}
+		return () => {
+			mq.removeEventListener("change", themeHandler);
+			unlistenChanged.then((fn) => fn());
+			for (const timer of debounceTimers.values()) clearTimeout(timer);
+		};
 	});
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="app" data-theme={theme}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<header class="titlebar" onmousedown={handleTitlebarDrag}>
 		<div class="titlebar-spacer"></div>
 		{#if tabs.items.length > 0}
-			<nav class="tabs">
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<nav class="tabs" role="tablist" onkeydown={handleTabListKeydown}>
 				{#each tabs.items as tab, i}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
@@ -88,28 +157,36 @@
 						class:active={i === tabs.activeIndex}
 						onclick={() => tabs.activate(i)}
 						onmousedown={(e) => handleMiddleClick(e, i)}
-						onkeydown={(e) => e.key === 'Enter' && tabs.activate(i)}
 						role="tab"
-						tabindex="0"
+						tabindex={i === tabs.activeIndex ? 0 : -1}
 						aria-selected={i === tabs.activeIndex}
 					>
 						<span class="tab-name">{tab.filename}</span>
 						<button
 							class="tab-close"
-							onclick={(e: MouseEvent) => { e.stopPropagation(); tabs.close(i); }}
-							aria-label="Close tab">&times;</button>
+							onclick={(e: MouseEvent) => {
+								e.stopPropagation();
+								closeTab(i);
+							}}
+							tabindex={-1}
+							aria-label="Close {tab.filename}">&times;</button
+						>
 					</div>
 				{/each}
 			</nav>
 		{/if}
 		<div class="titlebar-actions">
-			<button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
+			<button
+				class="theme-toggle"
+				onclick={toggleTheme}
+				aria-label="Toggle theme"
+			>
 				{theme === "dark" ? "☀" : "☾"}
 			</button>
 		</div>
 	</header>
 
-	<main class="content" bind:this={contentEl}>
+	<main class="content">
 		{#if tabs.active}
 			<article class="markdown-body">
 				{@html tabs.active.rendered}
@@ -211,6 +288,12 @@
 		height: 100%;
 	}
 
+	.tab:focus-visible {
+		outline: 2px solid #58a6ff;
+		outline-offset: -2px;
+		border-radius: 2px;
+	}
+
 	.app[data-theme="dark"] .tab {
 		background: transparent;
 		color: #8b949e;
@@ -300,6 +383,11 @@
 		transition: background-color 0.15s;
 		background: transparent;
 		color: inherit;
+	}
+
+	.theme-toggle:focus-visible {
+		outline: 2px solid #58a6ff;
+		outline-offset: -2px;
 	}
 
 	.app[data-theme="dark"] .theme-toggle:hover {

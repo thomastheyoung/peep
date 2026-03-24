@@ -1,11 +1,12 @@
+import DOMPurify from "dompurify";
 import { Marked } from "marked";
 import { createHighlighter, type Highlighter } from "shiki";
 
-let highlighter: Highlighter | null = null;
+let highlighterPromise: Promise<Highlighter> | null = null;
 
-async function getHighlighter(): Promise<Highlighter> {
-	if (!highlighter) {
-		highlighter = await createHighlighter({
+function getHighlighter(): Promise<Highlighter> {
+	if (!highlighterPromise) {
+		highlighterPromise = createHighlighter({
 			themes: ["github-dark", "github-light"],
 			langs: [
 				"javascript",
@@ -29,7 +30,7 @@ async function getHighlighter(): Promise<Highlighter> {
 			],
 		});
 	}
-	return highlighter;
+	return highlighterPromise;
 }
 
 export async function renderMarkdown(
@@ -44,24 +45,28 @@ export async function renderMarkdown(
 			code({ text, lang }) {
 				const language = lang || "text";
 				try {
-					const loadedLangs = hl.getLoadedLanguages();
-					if (loadedLangs.includes(language as never)) {
+					const loadedLangs = hl.getLoadedLanguages() as string[];
+					if (loadedLangs.includes(language)) {
 						return hl.codeToHtml(text, { lang: language, theme: shikiTheme });
 					}
 				} catch {
 					// fall through to plain
 				}
-				return `<pre><code class="language-${language}">${escapeHtml(text)}</code></pre>`;
+				return `<pre><code class="language-${escapeHtml(language)}">${escapeHtml(text)}</code></pre>`;
 			},
 		},
 	});
 
-	return await marked.parse(source);
+	const html = await marked.parse(source);
+	return DOMPurify.sanitize(html, {
+		ADD_ATTR: ["style"],
+	});
 }
 
 function escapeHtml(text: string): string {
 	return text
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }
