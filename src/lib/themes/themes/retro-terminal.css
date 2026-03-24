@@ -85,7 +85,7 @@
 
 	/* Markdown styling */
 	.markdown-body {
-		max-width: 800px;
+		max-width: var(--md-content-width, 800px);
 		background-image: repeating-linear-gradient(
 			0deg,
 			transparent,

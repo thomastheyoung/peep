@@ -6,18 +6,18 @@
 	import { renderMarkdown } from "$lib/markdown";
 	import { getTabs } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
-	import { getThemeState } from "$lib/themes/theme.svelte";
+	import { getPreferences } from "$lib/preferences.svelte";
 	import { open as openDialog } from "@tauri-apps/plugin-dialog";
-	import ThemePicker from "$lib/components/ThemePicker.svelte";
+	import Preferences from "$lib/components/Preferences.svelte";
 	import "$lib/themes/base.css";
 
 	const tabs = getTabs();
-	const themeState = getThemeState();
+	const prefs = getPreferences();
 
 	function handleTitlebarDrag(e: MouseEvent) {
 		if (e.button !== 0) return;
 		if (!(e.target instanceof HTMLElement)) return;
-		if (e.target.closest(".tab, .theme-picker-trigger, button")) return;
+		if (e.target.closest(".tab, button")) return;
 		getCurrentWindow().startDragging();
 	}
 
@@ -100,6 +100,10 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		const mod = e.metaKey || e.ctrlKey;
+		if (mod && e.key === ",") {
+			e.preventDefault();
+			prefs.togglePanel();
+		}
 		if (mod && e.key === "o") {
 			e.preventDefault();
 			openFileDialog();
@@ -111,7 +115,7 @@
 	}
 
 	onMount(() => {
-		themeState.init();
+		prefs.init();
 
 		const unlistenChanged = listen<FileContent>("file-changed", (event) => {
 			handleFileChanged(event.payload);
@@ -131,14 +135,16 @@
 </script>
 
 <svelte:head>
-	{#if themeState.css}
-		{@html `<style id="md-theme">${themeState.css}</style>`}
+	{#if prefs.theme.css}
+		{@html `<style id="md-theme">${prefs.theme.css}</style>`}
 	{/if}
 </svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="app">
+<Preferences />
+
+<div class="app" style:--md-content-width={prefs.contentWidthCss}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<header class="titlebar" data-tauri-drag-region onmousedown={handleTitlebarDrag}>
 		<div class="titlebar-spacer" data-tauri-drag-region></div>
@@ -170,9 +176,6 @@
 				{/each}
 			</nav>
 		{/if}
-		<div class="titlebar-actions">
-			<ThemePicker />
-		</div>
 	</header>
 
 	<main class="content">
@@ -298,13 +301,6 @@
 
 	.tab-close:hover {
 		opacity: 1 !important;
-	}
-
-	.titlebar-actions {
-		display: flex;
-		align-items: center;
-		padding: 0 12px;
-		flex-shrink: 0;
 	}
 
 	/* Content area */

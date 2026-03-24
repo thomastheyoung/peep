@@ -65,7 +65,7 @@
 
 	/* Markdown styling */
 	.markdown-body {
-		max-width: 800px;
+		max-width: var(--md-content-width, 800px);
 		font-size: 16px;
 	}
 
