@@ -134,6 +134,18 @@
 			e.preventDefault();
 			closeTab(tabs.activeIndex);
 		}
+		if (mod && tabs.items.length > 1) {
+			const dir =
+				e.key === "]" || e.key === "ArrowRight" ? 1 :
+				e.key === "[" || e.key === "ArrowLeft" ? -1 :
+				0;
+			if (dir) {
+				e.preventDefault();
+				tabs.activate(
+					(tabs.activeIndex + dir + tabs.items.length) % tabs.items.length,
+				);
+			}
+		}
 	}
 
 	onMount(() => {
