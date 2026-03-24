@@ -9,6 +9,59 @@ use tauri::{Emitter, Manager};
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
 
+#[cfg(target_os = "macos")]
+mod default_viewer {
+    use core_foundation::base::TCFType;
+    use core_foundation::string::{CFString, CFStringRef};
+
+    const MARKDOWN_UTI: &str = "net.daringfireball.markdown";
+    const BUNDLE_ID: &str = "com.tlj.peep";
+    const LS_ROLES_ALL: u32 = 0xFFFFFFFF;
+
+    #[link(name = "CoreServices", kind = "framework")]
+    extern "C" {
+        fn LSCopyDefaultRoleHandlerForContentType(
+            content_type: CFStringRef,
+            role: u32,
+        ) -> CFStringRef;
+
+        fn LSSetDefaultRoleHandlerForContentType(
+            content_type: CFStringRef,
+            role: u32,
+            handler_bundle_id: CFStringRef,
+        ) -> i32;
+    }
+
+    pub fn is_default() -> bool {
+        let uti = CFString::new(MARKDOWN_UTI);
+        let current = unsafe {
+            LSCopyDefaultRoleHandlerForContentType(uti.as_concrete_TypeRef(), LS_ROLES_ALL)
+        };
+        if current.is_null() {
+            return false;
+        }
+        let current_str = unsafe { CFString::wrap_under_create_rule(current) };
+        current_str.to_string().eq_ignore_ascii_case(BUNDLE_ID)
+    }
+
+    pub fn set_default() -> Result<(), String> {
+        let uti = CFString::new(MARKDOWN_UTI);
+        let bundle = CFString::new(BUNDLE_ID);
+        let result = unsafe {
+            LSSetDefaultRoleHandlerForContentType(
+                uti.as_concrete_TypeRef(),
+                LS_ROLES_ALL,
+                bundle.as_concrete_TypeRef(),
+            )
+        };
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(format!("Failed to set default handler (error {result})"))
+        }
+    }
+}
+
 fn is_markdown_file(path: &PathBuf) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -143,6 +196,30 @@ fn unwatch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn is_default_markdown_viewer() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        default_viewer::is_default()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
+fn set_default_markdown_viewer() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        default_viewer::set_default()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Only supported on macOS".into())
+    }
+}
+
+#[tauri::command]
 fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
     let state = app.state::<AppState>();
     let mut guard = state
@@ -198,7 +275,9 @@ pub fn run() {
             read_file,
             watch_file,
             unwatch_file,
-            get_initial_files
+            get_initial_files,
+            is_default_markdown_viewer,
+            set_default_markdown_viewer
         ])
         .setup(|app| {
             let handle = app.handle();

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invoke } from "@tauri-apps/api/core";
 	import { getPreferences, settingsSections, type RangeSetting } from "$lib/preferences.svelte";
 
 	const prefs = getPreferences();
@@ -12,6 +13,23 @@
 	const hasNonDefaultRange = $derived(
 		currentSettings.some((s) => s.type === "range" && s.value !== s.defaultValue),
 	);
+
+	let isDefaultViewer = $state<boolean | null>(null);
+
+	async function checkDefaultViewer() {
+		isDefaultViewer = await invoke<boolean>("is_default_markdown_viewer");
+	}
+
+	async function setAsDefault() {
+		await invoke("set_default_markdown_viewer");
+		isDefaultViewer = true;
+	}
+
+	$effect(() => {
+		if (prefs.showPanel) {
+			checkDefaultViewer();
+		}
+	});
 
 	function resetSection() {
 		for (const s of currentSettings) {
@@ -121,6 +139,21 @@
 							{/if}
 						</section>
 					{/each}
+
+					{#if prefs.activeSection === "appearance" && isDefaultViewer !== null}
+						<section class="section">
+							<h3 class="section-title">System</h3>
+							<div class="default-viewer-row">
+								{#if isDefaultViewer}
+									<span class="status-text">peep is the default markdown viewer</span>
+								{:else}
+									<button class="action-btn" onclick={setAsDefault}>
+										Set as default markdown viewer
+									</button>
+								{/if}
+							</div>
+						</section>
+					{/if}
 
 					{#if hasNonDefaultRange}
 						<button class="reset-btn" onclick={resetSection}>
@@ -417,6 +450,34 @@
 
 	.slider::-webkit-slider-thumb:hover {
 		background: #fff;
+	}
+
+	.default-viewer-row {
+		display: flex;
+		align-items: center;
+	}
+
+	.status-text {
+		font-size: 12px;
+		color: #888;
+	}
+
+	.action-btn {
+		padding: 6px 14px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 6px;
+		background: transparent;
+		color: #ccc;
+		font-family: inherit;
+		font-size: 12px;
+		cursor: pointer;
+		transition: background-color 0.1s;
+	}
+
+	.action-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: #e0e0e0;
+		transition: none;
 	}
 
 	.reset-btn {

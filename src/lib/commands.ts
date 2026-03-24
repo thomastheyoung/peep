@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { getPreferences } from "./preferences.svelte";
 import type { SettingDef, RangeSetting } from "./preferences.svelte";
 import type { getTabs } from "./tabs.svelte";
@@ -144,6 +145,18 @@ export function buildCommands(ctx: CommandContext): Command[] {
 				})),
 		});
 	}
+
+	// System
+	commands.push({
+		id: "set-default-viewer",
+		label: "Set as default markdown viewer",
+		keywords: ["default", "finder", "associate", "open with", "system"],
+		action: async () => {
+			const isDefault = await invoke<boolean>("is_default_markdown_viewer");
+			if (isDefault) return;
+			await invoke("set_default_markdown_viewer");
+		},
+	});
 
 	// Preferences
 	commands.push({
