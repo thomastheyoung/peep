@@ -50,9 +50,17 @@ Enables momentum (inertial) scrolling for horizontally-overflowing code blocks o
 
 ## Content area
 
-### `scroll-behavior: smooth`
+### `will-change: transform`
 
-Animates programmatic scrolls (e.g., clicking anchor links in the table of contents). Does not affect user-initiated scroll via trackpad or mouse wheel.
+Promotes the scroll container to its own GPU-composited layer. The compositor can then offset the layer for scrolling without triggering main-thread repaints. This is most impactful on lower-refresh-rate displays (e.g., 60Hz external monitors), where a single dropped frame creates a noticeable 33ms gap.
+
+### `contain: content`
+
+Declares that layout and paint inside the content area are fully isolated from the rest of the page. This lets the browser skip work outside the container during scroll-driven repaints and enables additional compositor optimizations.
+
+### No `scroll-behavior: smooth`
+
+Intentionally omitted. `scroll-behavior: smooth` forces CSS-driven interpolation on *all* scrolls, including user-initiated trackpad/wheel input. On 60Hz displays, this interpolation fights with macOS's native momentum scrolling physics and drops frames. Native scrolling (the default `auto` value) delegates entirely to the OS compositor, which handles it more efficiently. If programmatic smooth-scrolling is needed later (e.g., anchor link navigation), use `element.scrollTo({ behavior: 'smooth' })` on a per-call basis instead.
 
 ### `overscroll-behavior-y: contain`
 
