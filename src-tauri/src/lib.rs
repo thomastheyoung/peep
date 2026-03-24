@@ -155,6 +155,7 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             watched_files: Mutex::new(HashSet::new()),
             watcher: Mutex::new(None),

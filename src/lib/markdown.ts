@@ -1,13 +1,19 @@
 import DOMPurify from "dompurify";
 import { Marked } from "marked";
-import { createHighlighter, type Highlighter } from "shiki";
+import {
+	createCssVariablesTheme,
+	createHighlighter,
+	type Highlighter,
+} from "shiki";
+
+const cssVarsTheme = createCssVariablesTheme();
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
 function getHighlighter(): Promise<Highlighter> {
 	if (!highlighterPromise) {
 		highlighterPromise = createHighlighter({
-			themes: ["github-dark", "github-light"],
+			themes: [cssVarsTheme],
 			langs: [
 				"javascript",
 				"typescript",
@@ -33,12 +39,8 @@ function getHighlighter(): Promise<Highlighter> {
 	return highlighterPromise;
 }
 
-export async function renderMarkdown(
-	source: string,
-	theme: "dark" | "light",
-): Promise<string> {
+export async function renderMarkdown(source: string): Promise<string> {
 	const hl = await getHighlighter();
-	const shikiTheme = theme === "dark" ? "github-dark" : "github-light";
 
 	const marked = new Marked({
 		renderer: {
@@ -47,7 +49,10 @@ export async function renderMarkdown(
 				try {
 					const loadedLangs = hl.getLoadedLanguages() as string[];
 					if (loadedLangs.includes(language)) {
-						return hl.codeToHtml(text, { lang: language, theme: shikiTheme });
+						return hl.codeToHtml(text, {
+							lang: language,
+							theme: "css-variables",
+						});
 					}
 				} catch {
 					// fall through to plain

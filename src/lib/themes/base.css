@@ -1,0 +1,170 @@
+@layer base, theme;
+
+@layer base {
+	/* Markdown content — structural defaults */
+	.markdown-body {
+		max-width: 780px;
+		margin: 0 auto;
+		padding: 32px 40px 80px;
+		line-height: 1.7;
+		font-size: 15px;
+	}
+
+	/* Headings */
+	.markdown-body h1 {
+		font-size: 2em;
+		font-weight: 600;
+		margin: 0 0 16px;
+		padding-bottom: 0.3em;
+		border-bottom: 1px solid;
+		line-height: 1.25;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.markdown-body h2 {
+		font-size: 1.5em;
+		font-weight: 600;
+		margin: 24px 0 16px;
+		padding-bottom: 0.3em;
+		border-bottom: 1px solid;
+		line-height: 1.25;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.markdown-body h3 {
+		font-size: 1.25em;
+		font-weight: 600;
+		margin: 24px 0 16px;
+		line-height: 1.25;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.markdown-body h4,
+	.markdown-body h5,
+	.markdown-body h6 {
+		font-weight: 600;
+		margin: 24px 0 16px;
+		line-height: 1.25;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	/* Paragraphs & text */
+	.markdown-body p {
+		margin: 0 0 16px;
+	}
+
+	.markdown-body strong {
+		font-weight: 600;
+	}
+
+	/* Links */
+	.markdown-body a {
+		text-decoration: none;
+	}
+
+	.markdown-body a:hover {
+		text-decoration: underline;
+	}
+
+	/* Inline code */
+	.markdown-body code {
+		font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+		font-size: 0.875em;
+		padding: 0.2em 0.4em;
+		border-radius: 6px;
+	}
+
+	/* Code blocks */
+	.markdown-body pre {
+		margin: 0 0 16px;
+		padding: 16px;
+		border-radius: 8px;
+		overflow-x: auto;
+		font-size: 13px;
+		line-height: 1.5;
+		box-shadow: none;
+		border: none;
+		transform: none;
+	}
+
+	.markdown-body pre code {
+		padding: 0;
+		background: none;
+		font-size: inherit;
+		border: none;
+	}
+
+	.markdown-body .shiki {
+		border-radius: 8px;
+	}
+
+	/* Blockquotes */
+	.markdown-body blockquote {
+		margin: 0 0 16px;
+		padding: 0 1em;
+		border-left: 0.25em solid;
+		transform: none;
+		box-shadow: none;
+		background: transparent;
+	}
+
+	/* Lists */
+	.markdown-body ul,
+	.markdown-body ol {
+		margin: 0 0 16px;
+		padding-left: 2em;
+	}
+
+	.markdown-body li {
+		margin: 4px 0;
+	}
+
+	.markdown-body li + li {
+		margin-top: 4px;
+	}
+
+	/* Tables */
+	.markdown-body table {
+		width: 100%;
+		border-collapse: collapse;
+		margin: 0 0 16px;
+		font-size: 14px;
+		box-shadow: none;
+	}
+
+	.markdown-body th,
+	.markdown-body td {
+		padding: 6px 13px;
+		border: 1px solid;
+	}
+
+	.markdown-body th {
+		font-weight: 600;
+	}
+
+	/* Horizontal rule */
+	.markdown-body hr {
+		height: 0.25em;
+		margin: 24px 0;
+		border: 0;
+		border-radius: 2px;
+		overflow: visible;
+	}
+
+	/* Images */
+	.markdown-body img {
+		max-width: 100%;
+		border-radius: 8px;
+		transform: none;
+		box-shadow: none;
+	}
+
+	/* Task lists */
+	.markdown-body input[type="checkbox"] {
+		margin-right: 0.5em;
+	}
+}

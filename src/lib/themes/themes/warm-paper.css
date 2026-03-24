@@ -1,0 +1,342 @@
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 300;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-300-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 300;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-300-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Merriweather";
+	font-weight: 700;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/merriweather-latin-700-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Playfair Display";
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/playfair-display-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Playfair Display";
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/playfair-display-latin-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Playfair Display";
+	font-weight: 500;
+	font-style: italic;
+	font-display: swap;
+	src: url("/fonts/playfair-display-latin-500-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Playfair Display";
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/playfair-display-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Playfair Display";
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/playfair-display-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Courier Prime";
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/courier-prime-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Courier Prime";
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	src: url("/fonts/courier-prime-latin-700-normal.woff2") format("woff2");
+}
+
+@layer theme {
+	.app {
+		background: #fdf6ec;
+		color: #3d3229;
+		font-family: "Merriweather", Georgia, serif;
+		--md-accent: #c0392b;
+	}
+
+	.titlebar {
+		background: #3d3229;
+		border-color: #c0392b;
+	}
+
+	.tab {
+		background: transparent;
+		color: #a89685;
+	}
+
+	.tab:hover {
+		background: #4a3f35;
+	}
+
+	.tab.active {
+		background: #fdf6ec;
+		color: #3d3229;
+	}
+
+	.tab-close:hover {
+		background: #5c4f42;
+	}
+
+	.theme-toggle:hover,
+	.theme-picker-trigger:hover {
+		background: #4a3f35;
+	}
+
+	.content::-webkit-scrollbar-thumb {
+		background: #d4c5a9;
+		border-radius: 4px;
+	}
+
+	/* Markdown styling */
+	.markdown-body {
+		max-width: 640px;
+		line-height: 1.9;
+		font-size: 16px;
+		padding: 56px 48px;
+	}
+
+	.markdown-body h1 {
+		font-family: "Playfair Display", serif;
+		font-weight: 700;
+		font-size: 36px;
+		color: #2c241d;
+		border-bottom: 1px solid #d4c5a9;
+		padding-bottom: 16px;
+		margin-top: 56px;
+		margin-bottom: 28px;
+		line-height: 1.3;
+		letter-spacing: -0.3px;
+	}
+
+	.markdown-body h2 {
+		font-family: "Playfair Display", serif;
+		font-weight: 500;
+		font-style: italic;
+		font-size: 26px;
+		color: #3d3229;
+		border-bottom: none;
+		padding-bottom: 0;
+		margin-top: 44px;
+		margin-bottom: 18px;
+		line-height: 1.35;
+	}
+
+	.markdown-body h3 {
+		font-family: "Playfair Display", serif;
+		font-weight: 600;
+		font-size: 20px;
+		color: #3d3229;
+		margin-top: 36px;
+	}
+
+	.markdown-body h4 {
+		font-family: "Playfair Display", serif;
+		font-weight: 600;
+		font-size: 17px;
+		color: #4a3f35;
+		font-style: italic;
+	}
+
+	.markdown-body p {
+		margin-bottom: 18px;
+		line-height: 1.9;
+		color: #3d3229;
+	}
+
+	.markdown-body strong {
+		font-weight: 700;
+		color: #2c241d;
+	}
+
+	.markdown-body em {
+		color: #4a3f35;
+	}
+
+	.markdown-body a {
+		color: #c0392b;
+		border-bottom: 1px solid transparent;
+		transition: border-color 0.2s;
+	}
+
+	.markdown-body a:hover {
+		text-decoration: none;
+		border-bottom-color: #c0392b;
+	}
+
+	.markdown-body code {
+		font-family: "Courier Prime", "Courier New", monospace;
+		background: #f0e7d8;
+		border-radius: 3px;
+		color: #c0392b;
+	}
+
+	.markdown-body pre {
+		background: #f5ede0;
+		border: 1px solid #d4c5a9;
+		border-radius: 4px;
+		padding: 24px;
+		margin: 28px 0;
+	}
+
+	.markdown-body pre code {
+		font-family: "Courier Prime", "Courier New", monospace;
+		color: #3d3229;
+	}
+
+	.markdown-body blockquote {
+		border-left: 2px solid #b8a88a;
+		margin: 28px 0;
+		padding: 8px 28px;
+		font-style: italic;
+		font-size: 1.1em;
+		color: #5c4f42;
+	}
+
+	.markdown-body blockquote p {
+		margin-bottom: 0;
+		color: #5c4f42;
+	}
+
+	.markdown-body thead {
+		border-bottom: 2px solid #b8a88a;
+	}
+
+	.markdown-body th {
+		font-family: "Playfair Display", serif;
+		font-weight: 600;
+		font-size: 13px;
+		text-transform: uppercase;
+		letter-spacing: 1.5px;
+		padding: 10px 16px;
+		color: #3d3229;
+		border-bottom: 2px solid #b8a88a;
+		border-left: none;
+		border-right: none;
+	}
+
+	.markdown-body td {
+		padding: 10px 16px;
+		border-color: #e0d5c3;
+		border-left: none;
+		border-right: none;
+		color: #4a3f35;
+	}
+
+	.markdown-body tbody tr:hover {
+		background: rgba(184, 168, 138, 0.08);
+	}
+
+	.markdown-body hr {
+		border: none;
+		text-align: center;
+		margin: 48px 0;
+		height: auto;
+		background: none;
+	}
+
+	.markdown-body hr::after {
+		content: "* * *";
+		display: block;
+		font-family: "Playfair Display", serif;
+		font-size: 16px;
+		letter-spacing: 8px;
+		color: #b8a88a;
+	}
+
+	.markdown-body ul li::marker {
+		color: #b8a88a;
+		font-size: 0.8em;
+	}
+
+	.markdown-body ol li::marker {
+		color: #b8a88a;
+		font-family: "Playfair Display", serif;
+	}
+
+	.markdown-body img {
+		box-shadow: 0 2px 8px rgba(61, 50, 41, 0.1);
+		border-radius: 4px;
+	}
+
+	.markdown-body ::selection {
+		background: rgba(192, 57, 43, 0.15);
+		color: #2c241d;
+	}
+
+	.empty-hint code {
+		background: #f0e7d8;
+		color: #c0392b;
+	}
+
+	/* Shiki syntax tokens */
+	.shiki,
+	.shiki span {
+		--shiki-foreground: #3d3229;
+		--shiki-background: #f5ede0;
+		--shiki-token-constant: #8b5e3c;
+		--shiki-token-string: #5c6f2b;
+		--shiki-token-comment: #b8a88a;
+		--shiki-token-keyword: #c0392b;
+		--shiki-token-parameter: #8b5e3c;
+		--shiki-token-function: #6b4c8a;
+		--shiki-token-string-expression: #5c6f2b;
+		--shiki-token-punctuation: #3d3229;
+		--shiki-token-link: #c0392b;
+	}
+}
