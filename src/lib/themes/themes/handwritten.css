@@ -11,14 +11,16 @@
 			#fffff8;
 		color: #333333;
 		font-family: system-ui, cursive;
+		line-height: 2;
 		--md-accent: #2980b9;
 	}
 
 	.markdown-body {
 		max-width: var(--md-content-width, 800px);
 		border-left: 2px solid #e74c3c;
-		padding-left: 60px;
+		padding: 48px 32px 80px 60px;
 		margin-left: calc(50% - var(--md-content-width, 800px) / 2);
+		line-height: 2;
 	}
 
 	.markdown-body h1 {
@@ -49,12 +51,39 @@
 		color: #2980b9;
 		margin-top: 28px;
 		margin-bottom: 12px;
+		transform: rotate(-0.2deg);
 	}
 
 	.markdown-body h4 {
 		font-family: cursive;
 		font-size: 1.15em;
 		color: #e74c3c;
+		margin: 0.7em 0 0.3em;
+	}
+
+	.markdown-body h5 {
+		font-family: cursive;
+		font-size: 1.05em;
+		color: #27ae60;
+		margin: 0.7em 0 0.3em;
+	}
+
+	.markdown-body h6 {
+		font-family: cursive;
+		font-size: 1em;
+		color: #2980b9;
+		margin: 0.6em 0 0.3em;
+		opacity: 0.7;
+	}
+
+	.markdown-body p {
+		margin: 0 0 1em;
+		line-height: 2;
+	}
+
+	.markdown-body li {
+		margin: 0.3em 0;
+		line-height: 2;
 	}
 
 	.markdown-body strong {
@@ -141,6 +170,7 @@
 	.markdown-body ul {
 		list-style: none;
 		padding-left: 24px;
+		margin: 1em 0;
 	}
 
 	.markdown-body ul li::before {
@@ -153,6 +183,7 @@
 
 	.markdown-body ol {
 		font-family: cursive;
+		margin: 1em 0;
 	}
 
 	.markdown-body ol ::marker {
