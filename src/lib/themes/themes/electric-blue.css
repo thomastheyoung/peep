@@ -95,6 +95,15 @@
 		margin-bottom: 12px;
 	}
 
+	.markdown-body h4 {
+		font-family: "IBM Plex Mono", monospace;
+		font-size: 1em;
+		font-weight: 600;
+		color: #60a5fa;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
 	.markdown-body strong {
 		color: #3b82f6;
 	}

@@ -35,6 +35,11 @@
 		margin-bottom: 12px;
 	}
 
+	.markdown-body h4 {
+		font-size: 1.05em;
+		color: #2a5080;
+	}
+
 	.markdown-body a {
 		color: #0284c7;
 		text-decoration: none;

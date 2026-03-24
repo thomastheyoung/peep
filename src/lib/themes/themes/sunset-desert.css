@@ -11,7 +11,7 @@
 	}
 
 	.markdown-body h1 {
-		font-size: 2.4em;
+		font-size: 2.2em;
 		color: #e07a5f;
 		border-bottom: none;
 		margin-top: 40px;
@@ -19,7 +19,7 @@
 	}
 
 	.markdown-body h2 {
-		font-size: 1.4em;
+		font-size: 1.5em;
 		font-weight: 300;
 		color: #81b29a;
 		text-transform: uppercase;
@@ -30,10 +30,15 @@
 	}
 
 	.markdown-body h3 {
-		font-size: 1.3em;
+		font-size: 1.15em;
 		color: #5c3d2e;
 		margin-top: 28px;
 		margin-bottom: 12px;
+	}
+
+	.markdown-body h4 {
+		font-size: 1em;
+		color: #7a5a48;
 	}
 
 	.markdown-body strong {

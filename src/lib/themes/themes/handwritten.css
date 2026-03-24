@@ -51,6 +51,12 @@
 		margin-bottom: 12px;
 	}
 
+	.markdown-body h4 {
+		font-family: cursive;
+		font-size: 1.15em;
+		color: #e74c3c;
+	}
+
 	.markdown-body strong {
 		color: #e74c3c;
 	}

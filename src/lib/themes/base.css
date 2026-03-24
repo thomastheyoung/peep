@@ -7,7 +7,7 @@
 		margin: 0 auto;
 		padding: 32px 40px 80px;
 		line-height: var(--md-line-height, 1.7);
-		font-size: 15px;
+		font-size: 16px;
 		font-weight: var(--md-font-weight, 400);
 		letter-spacing: var(--md-letter-spacing, 0em);
 		text-wrap: pretty;
@@ -15,43 +15,67 @@
 	}
 
 	/* Headings */
+	.markdown-body h1,
+	.markdown-body h2,
+	.markdown-body h3,
+	.markdown-body h4 {
+		text-wrap: balance;
+	}
+
 	.markdown-body h1 {
 		font-size: 2em;
-		font-weight: 600;
-		margin: 0 0 16px;
+		font-weight: 700;
+		margin: 0 0 0.75em;
 		padding-bottom: 0.3em;
 		border-bottom: 1px solid;
-		line-height: 1.25;
+		line-height: 1.15;
 		text-transform: none;
-		letter-spacing: normal;
+		letter-spacing: -0.02em;
 	}
 
 	.markdown-body h2 {
 		font-size: 1.5em;
-		font-weight: 600;
-		margin: 24px 0 16px;
+		font-weight: 700;
+		margin: 2em 0 0.75em;
 		padding-bottom: 0.3em;
 		border-bottom: 1px solid;
 		line-height: 1.25;
 		text-transform: none;
-		letter-spacing: normal;
+		letter-spacing: -0.01em;
 	}
 
 	.markdown-body h3 {
 		font-size: 1.25em;
 		font-weight: 600;
-		margin: 24px 0 16px;
-		line-height: 1.25;
+		margin: 1.5em 0 0.5em;
+		line-height: 1.35;
 		text-transform: none;
 		letter-spacing: normal;
 	}
 
-	.markdown-body h4,
-	.markdown-body h5,
-	.markdown-body h6 {
+	.markdown-body h4 {
+		font-size: 1em;
 		font-weight: 600;
-		margin: 24px 0 16px;
-		line-height: 1.25;
+		margin: 1.5em 0 0.5em;
+		line-height: 1.4;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.markdown-body h5 {
+		font-size: 0.875em;
+		font-weight: 600;
+		margin: 1.5em 0 0.5em;
+		line-height: 1.4;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.markdown-body h6 {
+		font-size: 0.85em;
+		font-weight: 600;
+		margin: 1.5em 0 0.5em;
+		line-height: 1.4;
 		text-transform: none;
 		letter-spacing: normal;
 	}
@@ -76,7 +100,7 @@
 
 	/* Inline code */
 	.markdown-body code {
-		font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+		font-family: ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", monospace;
 		font-size: 0.875em;
 		padding: 0.2em 0.4em;
 		border-radius: 6px;
@@ -89,7 +113,7 @@
 		border-radius: 8px;
 		overflow-x: auto;
 		overscroll-behavior-x: contain;
-		font-size: 13px;
+		font-size: 0.85em;
 		line-height: 1.5;
 		box-shadow: none;
 		border: none;
@@ -111,8 +135,8 @@
 
 	/* Blockquotes */
 	.markdown-body blockquote {
-		margin: 0 0 16px;
-		padding: 0 1em;
+		margin: 1.5em 0;
+		padding: 0.25em 1em;
 		border-left: 0.25em solid;
 		transform: none;
 		box-shadow: none;
@@ -122,16 +146,16 @@
 	/* Lists */
 	.markdown-body ul,
 	.markdown-body ol {
-		margin: 0 0 16px;
+		margin: 0 0 1em;
 		padding-left: 2em;
 	}
 
 	.markdown-body li {
-		margin: 4px 0;
+		margin: 0.25em 0;
 	}
 
 	.markdown-body li + li {
-		margin-top: 4px;
+		margin-top: 0.25em;
 	}
 
 	/* Tables */
