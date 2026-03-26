@@ -8,8 +8,6 @@
 	}));
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&display=swap" rel="stylesheet" />
-
 <div class="container">
 	<span class="label">21 / Aurora home</span>
 	<div class="screen">
@@ -86,12 +84,13 @@
 		background: linear-gradient(180deg, #020617 0%, #0a0f1f 40%, #111827 75%, #1a2236 100%);
 		border-radius: 16px;
 		overflow: hidden;
+		container-type: size;
 	}
 
 	/* ---- Aurora ---- */
 	.aurora-group {
 		position: absolute;
-		inset: 0;
+		inset: -60px;
 		overflow: hidden;
 	}
 
@@ -116,33 +115,33 @@
 	.a1 {
 		top: 5%;
 		background: linear-gradient(90deg, transparent 5%, #22d3ee 25%, #10b981 50%, #22d3ee 75%, transparent 95%);
-		animation: drift-a1 13s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, fade-aurora 2s ease-out 0.3s forwards;
+		animation: drift-a1 13s linear infinite, fade-aurora 2s ease-out 0.3s forwards;
 	}
 
 	.a2 {
 		top: 12%;
 		background: linear-gradient(90deg, transparent 5%, #a78bfa 30%, #7c3aed 55%, #6366f1 75%, transparent 95%);
-		animation: drift-a2 17s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, fade-aurora 2s ease-out 0.6s forwards;
+		animation: drift-a2 17s linear infinite, fade-aurora 2s ease-out 0.6s forwards;
 	}
 
 	.a3 {
 		top: 2%;
 		background: linear-gradient(90deg, transparent 5%, #34d399 20%, #22d3ee 45%, #818cf8 70%, transparent 95%);
-		animation: drift-a3 11s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, fade-aurora 2s ease-out 0.1s forwards;
+		animation: drift-a3 11s linear infinite, fade-aurora 2s ease-out 0.1s forwards;
 	}
 
 	.a4 {
 		top: 18%;
 		height: 35%;
 		background: linear-gradient(90deg, transparent 10%, #06b6d4 35%, #10b981 60%, transparent 90%);
-		animation: drift-a4 19s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, fade-aurora 2s ease-out 0.9s forwards;
+		animation: drift-a4 19s linear infinite, fade-aurora 2s ease-out 0.9s forwards;
 	}
 
 	.a5 {
 		top: 8%;
 		height: 30%;
 		background: linear-gradient(90deg, transparent 10%, #c084fc 30%, #e879f9 50%, #818cf8 70%, transparent 90%);
-		animation: drift-a5 23s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, fade-aurora 2.5s ease-out 1.2s forwards;
+		animation: drift-a5 23s linear infinite, fade-aurora 2.5s ease-out 1.2s forwards;
 	}
 
 	/* Each keyframe path wanders differently — translateX, translateY, rotate, scaleX all shift */
@@ -214,10 +213,11 @@
 	/* ---- Logo ---- */
 	.logo-track {
 		position: absolute;
-		top: 50%;
+		top: 0;
 		left: 50%;
-		transform: translate(-50%, -50%);
+		transform: translate(-50%, 50cqh) translateY(-50%);
 		z-index: 2;
+		will-change: transform;
 		animation: track-rise 1.6s cubic-bezier(0.22, 1, 0.36, 1) 2s forwards;
 	}
 
@@ -265,8 +265,7 @@
 
 	@keyframes track-rise {
 		to {
-			top: 18%;
-			transform: translate(-50%, -50%) scale(0.7);
+			transform: translate(-50%, 18cqh) translateY(-50%) scale(0.7);
 		}
 	}
 
