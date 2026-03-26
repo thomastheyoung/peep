@@ -11,3 +11,8 @@ vite.config.ts.timestamp-*
 *.log
 wip/
 storybook-static/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
