@@ -1,8 +1,11 @@
+import type { TocHeading } from "./markdown";
+
 export interface Tab {
 	path: string;
 	filename: string;
 	content: string;
 	rendered: string;
+	headings: TocHeading[];
 	color: string;
 }
 
@@ -38,13 +41,14 @@ export function getTabs() {
 			tabs.push({ ...tab, color: nextColor() });
 			activeIndex = tabs.length - 1;
 		},
-		update(path: string, content: string, rendered: string) {
+		update(path: string, content: string, rendered: string, headings: TocHeading[]) {
 			const idx = tabs.findIndex((t) => t.path === path);
 			if (idx < 0) return;
 			const existing = tabs[idx];
 			if (!existing) return;
 			existing.content = content;
 			existing.rendered = rendered;
+			existing.headings = headings;
 		},
 		close(index: number) {
 			if (index < 0 || index >= tabs.length) return;

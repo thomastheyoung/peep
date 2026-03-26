@@ -5,6 +5,26 @@ import {
 	type Highlighter,
 } from "shiki";
 
+export interface TocHeading {
+	text: string;
+	level: number;
+	id: string;
+}
+
+function stripHtmlTags(html: string): string {
+	return html.replace(/<[^>]*>/g, "");
+}
+
+function slugify(text: string): string {
+	return text
+		.toLowerCase()
+		.trim()
+		.replace(/[^\w\s-]/g, "")
+		.replace(/[\s_]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
+}
+
 const cssVarsTheme = createCssVariablesTheme();
 
 let highlighterPromise: Promise<Highlighter> | null = null;
@@ -45,13 +65,16 @@ let renderGeneration = 0;
 
 export async function renderMarkdown(
 	source: string,
-): Promise<{ html: string; generation: number }> {
+): Promise<{ html: string; generation: number; headings: TocHeading[] }> {
 	const generation = ++renderGeneration;
 	const hl = await getHighlighter();
 
 	if (!loadedLangsSet) {
 		loadedLangsSet = new Set(hl.getLoadedLanguages() as string[]);
 	}
+
+	const headings: TocHeading[] = [];
+	const slugCounts = new Map<string, number>();
 
 	marked.use({
 		renderer: {
@@ -69,11 +92,21 @@ export async function renderMarkdown(
 				}
 				return `<pre><code class="language-${escapeHtml(language)}">${escapeHtml(text)}</code></pre>`;
 			},
+			heading({ text, depth }) {
+				const plainText = stripHtmlTags(text);
+				let slug = slugify(plainText) || `heading-${depth}`;
+				const count = slugCounts.get(slug) ?? 0;
+				slugCounts.set(slug, count + 1);
+				if (count > 0) slug = `${slug}-${count}`;
+
+				headings.push({ text: plainText, level: depth, id: slug });
+				return `<h${depth} id="${escapeHtml(slug)}">${text}</h${depth}>`;
+			},
 		},
 	});
 
 	const html = await marked.parse(source);
-	return { html, generation };
+	return { html, generation, headings };
 }
 
 export function isLatestRender(generation: number): boolean {

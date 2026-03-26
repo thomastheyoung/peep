@@ -14,13 +14,18 @@
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import { buildCommands } from "$lib/commands";
 	import { copyCode } from "$lib/copy-code";
+	import { scrollSpy } from "$lib/scroll-spy";
+	import { getToc } from "$lib/toc.svelte";
+	import TableOfContents from "$lib/components/TableOfContents.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
 	import "$lib/themes/base.css";
 
 	const tabs = getTabs();
 	const prefs = getPreferences();
 	const palette = getCommandPalette();
+	const toc = getToc();
 	let appWindow: Window;
+	let contentEl: HTMLElement | undefined = $state();
 
 	function handleTitlebarDrag(e: MouseEvent) {
 		if (e.button !== 0) return;
@@ -32,8 +37,8 @@
 	async function openFile(path: string) {
 		try {
 			const result = await invoke<FileContent>("read_file", { path });
-			const { html } = await renderMarkdown(result.content);
-			tabs.add({ ...result, rendered: html });
+			const { html, headings } = await renderMarkdown(result.content);
+			tabs.add({ ...result, rendered: html, headings });
 			await invoke("watch_file", { path: result.path });
 		} catch (err) {
 			console.error(`Failed to open ${path}:`, err);
@@ -74,9 +79,9 @@
 			setTimeout(async () => {
 				debounceTimers.delete(payload.path);
 				try {
-					const { html, generation } = await renderMarkdown(payload.content);
+					const { html, generation, headings } = await renderMarkdown(payload.content);
 					if (!isLatestRender(generation)) return;
-					tabs.update(payload.path, payload.content, html);
+					tabs.update(payload.path, payload.content, html, headings);
 				} catch (err) {
 					console.error(`Failed to render ${payload.path}:`, err);
 				}
@@ -127,6 +132,11 @@
 		if (mod && e.key === ",") {
 			e.preventDefault();
 			prefs.togglePanel();
+		}
+		if (mod && e.shiftKey && (e.key === "T" || e.key === "t")) {
+			e.preventDefault();
+			prefs.toggleToc();
+			return;
 		}
 		if (mod && e.key === "o") {
 			e.preventDefault();
@@ -191,6 +201,11 @@
 			for (const timer of debounceTimers.values()) clearTimeout(timer);
 		};
 	});
+
+	$effect(() => {
+		const active = tabs.active;
+		toc.setHeadings(active?.headings ?? []);
+	});
 </script>
 
 <svelte:head>
@@ -253,7 +268,13 @@
 		{/if}
 	</header>
 
-	<main class="content" class:no-scroll={!tabs.active} style:zoom={prefs.zoomLevel}>
+	<main
+		class="content"
+		class:no-scroll={!tabs.active}
+		style:zoom={prefs.zoomLevel}
+		bind:this={contentEl}
+		use:scrollSpy={(id) => toc.setActiveId(id)}
+	>
 		{#if tabs.active}
 			<article class="markdown-body" use:copyCode>
 				{@html tabs.active.rendered}
@@ -262,6 +283,9 @@
 			<EmptyState onOpenFile={openFileDialog} />
 		{/if}
 	</main>
+	{#if prefs.showToc && toc.hasHeadings && tabs.active}
+		<TableOfContents scrollContainer={contentEl} onClose={() => prefs.toggleToc()} />
+	{/if}
 </div>
 
 <style>
