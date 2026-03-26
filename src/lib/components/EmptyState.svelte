@@ -34,6 +34,7 @@
 
 	<div class="logo-track">
 		<h1 class="logo">peep</h1>
+		<p class="tagline">Have a nice doc</p>
 	</div>
 
 	<div class="help-panel">
@@ -218,6 +219,18 @@
 			logo-fade-in 1.2s ease-out 0.5s forwards,
 			gradient-shift 8s ease-in-out infinite;
 		filter: drop-shadow(0 0 20px rgba(15, 23, 42, 0.5));
+	}
+
+	.tagline {
+		margin: 6px 0 0;
+		font-family: 'Comfortaa', sans-serif;
+		font-size: 15px;
+		font-weight: 400;
+		letter-spacing: 0.04em;
+		color: rgba(15, 23, 42, 0.55);
+		text-align: center;
+		opacity: 0;
+		animation: logo-fade-in 1s ease-out 1.2s forwards;
 	}
 
 	@keyframes logo-fade-in {
