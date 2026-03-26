@@ -62,7 +62,6 @@ interface StoredPreferences {
 	fontWeight?: number;
 	letterSpacing?: number;
 	lineHeight?: number;
-	showToc?: boolean;
 }
 
 function loadStored(): StoredPreferences {
@@ -126,8 +125,6 @@ let activeSection = $state<SettingsSection>("appearance");
 let fontWeight = $state(FONT_WEIGHT_DEFAULT);
 let letterSpacing = $state(LETTER_SPACING_DEFAULT);
 let lineHeight = $state(LINE_HEIGHT_DEFAULT);
-let showToc = $state(true);
-
 const contentWidthValues: Record<ContentWidth, string> = {
 	auto: "780px",
 	wide: "1200px",
@@ -135,7 +132,7 @@ const contentWidthValues: Record<ContentWidth, string> = {
 };
 
 function allStored(themeId: string): StoredPreferences {
-	return { theme: themeId, contentWidth, zoomLevel, fontWeight, letterSpacing, lineHeight, showToc };
+	return { theme: themeId, contentWidth, zoomLevel, fontWeight, letterSpacing, lineHeight };
 }
 
 // ---------------------------------------------------------------------------
@@ -168,11 +165,6 @@ export function getPreferences() {
 
 	function setZoomValue(value: number) {
 		zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 10) / 10));
-		saveStored(allStored(themeState.id));
-	}
-
-	function setShowTocValue(value: boolean) {
-		showToc = value;
 		saveStored(allStored(themeState.id));
 	}
 
@@ -246,19 +238,6 @@ export function getPreferences() {
 					],
 					value: contentWidth,
 					select: (v) => setContentWidthValue(v as ContentWidth),
-				},
-				{
-					type: "choice",
-					id: "table-of-contents",
-					label: "Table of contents",
-					section: "layout",
-					keywords: ["toc", "outline", "sidebar", "headings"],
-					options: [
-						{ value: "on", label: "Show" },
-						{ value: "off", label: "Hide" },
-					],
-					value: showToc ? "on" : "off",
-					select: (v) => setShowTocValue(v === "on"),
 				},
 				{
 					type: "range",
@@ -350,13 +329,6 @@ export function getPreferences() {
 			showPanel = !showPanel;
 		},
 
-		get showToc() {
-			return showToc;
-		},
-		toggleToc() {
-			setShowTocValue(!showToc);
-		},
-
 		async init() {
 			const stored = loadStored();
 			if (stored.contentWidth) contentWidth = stored.contentWidth;
@@ -364,8 +336,6 @@ export function getPreferences() {
 			if (stored.fontWeight != null) fontWeight = stored.fontWeight;
 			if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
 			if (stored.lineHeight != null) lineHeight = stored.lineHeight;
-			if (stored.showToc != null) showToc = stored.showToc;
-
 			if (stored.theme) {
 				await themeState.setTheme(stored.theme);
 			} else {

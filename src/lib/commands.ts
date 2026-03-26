@@ -158,15 +158,6 @@ export function buildCommands(ctx: CommandContext): Command[] {
 		},
 	});
 
-	// Toggle table of contents
-	commands.push({
-		id: "toggle-toc",
-		label: "Toggle table of contents",
-		keywords: ["toc", "outline", "sidebar", "headings"],
-		shortcut: "⌘⇧T",
-		action: () => prefs.toggleToc(),
-	});
-
 	// Preferences
 	commands.push({
 		id: "preferences",

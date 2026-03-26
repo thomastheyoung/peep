@@ -16,7 +16,7 @@
 	import { copyCode } from "$lib/copy-code";
 	import { scrollSpy } from "$lib/scroll-spy";
 	import { getToc } from "$lib/toc.svelte";
-	import TableOfContents from "$lib/components/TableOfContents.svelte";
+	import FloatingDock from "$lib/components/FloatingDock.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
 	import "$lib/themes/base.css";
 
@@ -132,11 +132,6 @@
 		if (mod && e.key === ",") {
 			e.preventDefault();
 			prefs.togglePanel();
-		}
-		if (mod && e.shiftKey && (e.key === "T" || e.key === "t")) {
-			e.preventDefault();
-			prefs.toggleToc();
-			return;
 		}
 		if (mod && e.key === "o") {
 			e.preventDefault();
@@ -283,8 +278,8 @@
 			<EmptyState onOpenFile={openFileDialog} />
 		{/if}
 	</main>
-	{#if prefs.showToc && toc.hasHeadings && tabs.active}
-		<TableOfContents scrollContainer={contentEl} onClose={() => prefs.toggleToc()} />
+	{#if toc.hasHeadings && tabs.active}
+		<FloatingDock scrollContainer={contentEl} />
 	{/if}
 </div>
 
