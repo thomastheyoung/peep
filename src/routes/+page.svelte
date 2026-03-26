@@ -14,6 +14,7 @@
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import { buildCommands } from "$lib/commands";
 	import { copyCode } from "$lib/copy-code";
+	import EmptyState from "$lib/components/EmptyState.svelte";
 	import "$lib/themes/base.css";
 
 	const tabs = getTabs();
@@ -252,22 +253,13 @@
 		{/if}
 	</header>
 
-	<main class="content" style:zoom={prefs.zoomLevel}>
+	<main class="content" class:no-scroll={!tabs.active} style:zoom={prefs.zoomLevel}>
 		{#if tabs.active}
 			<article class="markdown-body" use:copyCode>
 				{@html tabs.active.rendered}
 			</article>
 		{:else}
-			<div class="empty-state">
-				<p class="empty-title">No files open</p>
-				<p class="empty-hint">
-					Run <code>md &lt;file.md&gt;</code> or press
-					<kbd>&#8984;O</kbd> to open a file
-				</p>
-				<button class="open-file-btn" onclick={openFileDialog}>
-					Open file
-				</button>
-			</div>
+			<EmptyState onOpenFile={openFileDialog} />
 		{/if}
 	</main>
 </div>
@@ -462,53 +454,9 @@
 		border-radius: 4px;
 	}
 
-	/* Empty state */
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		gap: 8px;
-		color: #8b949e;
+	.content.no-scroll {
+		overflow: hidden;
+		scrollbar-gutter: auto;
 	}
 
-	.empty-title {
-		font-size: 18px;
-		font-weight: 500;
-	}
-
-	.empty-hint {
-		font-size: 14px;
-	}
-
-	.empty-hint code,
-	.empty-hint kbd {
-		font-family: "SF Mono", "Fira Code", monospace;
-		padding: 2px 6px;
-		border-radius: 4px;
-		font-size: 0.9em;
-		background: rgba(110, 118, 129, 0.4);
-	}
-
-	.open-file-btn {
-		margin-top: 12px;
-		padding: 8px 20px;
-		border: 1px solid currentColor;
-		border-radius: 6px;
-		background: transparent;
-		color: inherit;
-		font-family: inherit;
-		font-size: 14px;
-		cursor: pointer;
-		opacity: 0.7;
-		transition:
-			opacity 0.15s,
-			background-color 0.15s;
-	}
-
-	.open-file-btn:hover {
-		opacity: 1;
-		background: rgba(128, 128, 128, 0.1);
-	}
 </style>
