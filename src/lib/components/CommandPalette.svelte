@@ -20,16 +20,7 @@
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLDivElement | undefined = $state();
 
-	const filtered: Command[] = $derived.by(() => {
-		const level = palette.currentLevel;
-		if (!level) return [];
-		const q = palette.query.toLowerCase();
-		if (!q) return level.commands;
-		return level.commands.filter((cmd) => {
-			if (cmd.label.toLowerCase().includes(q)) return true;
-			return cmd.keywords?.some((k) => k.toLowerCase().includes(q)) ?? false;
-		});
-	});
+	const filtered = $derived(palette.filtered);
 
 	const isThemePanel = $derived(filtered.length > 0 && filtered[0]?.swatches != null);
 
@@ -139,7 +130,7 @@
 			</div>
 
 			<div class="palette-body">
-				<div class="list" bind:this={listEl}>
+				<div class="list" role="listbox" bind:this={listEl}>
 					{#each filtered as cmd, i (cmd.id)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<div

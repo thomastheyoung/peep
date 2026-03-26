@@ -7,7 +7,7 @@
 	import { getPreferences } from "$lib/preferences.svelte";
 	import { getCommandPalette } from "$lib/command-palette.svelte";
 	import { buildCommands } from "$lib/commands";
-	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files.svelte";
+	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
 	import { copyCode } from "$lib/copy-code";
 	import { scrollSpy } from "$lib/scroll-spy";
 	import { getToc } from "$lib/toc.svelte";
@@ -63,7 +63,7 @@
 	}
 
 	onMount(() => {
-		prefs.init();
+		prefs.init().catch((err) => console.error("Failed to initialize preferences:", err));
 
 		const unlistenChanged = listen<FileContent>("file-changed", (event) => {
 			handleFileChanged(event.payload);
@@ -73,8 +73,9 @@
 			openFile(event.payload);
 		});
 
-		const unlistenZoom = listen<string>("zoom", (event) => {
-			switch (event.payload) {
+		const unlistenZoom = listen<"in" | "out" | "reset">("zoom", (event) => {
+			const direction = event.payload;
+			switch (direction) {
 				case "in":
 					prefs.zoomIn();
 					break;
@@ -84,6 +85,10 @@
 				case "reset":
 					prefs.resetZoom();
 					break;
+				default: {
+					const _exhaustive: never = direction;
+					console.warn(`Unknown zoom direction: ${_exhaustive}`);
+				}
 			}
 		});
 
@@ -101,13 +106,10 @@
 		};
 	});
 
-	$effect(() => {
-		const active = tabs.active;
-		toc.setHeadings(active?.headings ?? []);
-	});
 </script>
 
 <svelte:head>
+	<title>{tabs.active ? `${tabs.active.filename} — peep` : 'peep'}</title>
 	{#if prefs.theme.css}
 		{@html `<style id="md-theme">${prefs.theme.css}</style>`}
 	{/if}
@@ -180,7 +182,6 @@
 		overflow-x: hidden;
 		overscroll-behavior-y: contain;
 		scrollbar-gutter: stable;
-		will-change: transform;
 		contain: content;
 	}
 

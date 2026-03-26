@@ -1,6 +1,6 @@
 import type { ThemeMeta } from "./types";
 
-export const themes: ThemeMeta[] = [
+export const themes = [
 	{
 		id: "github-dark",
 		name: "GitHub Dark",
@@ -148,4 +148,6 @@ export const themes: ThemeMeta[] = [
 		load: () =>
 			import("./themes/handwritten.css?raw").then((m) => m.default),
 	},
-];
+] as const satisfies readonly ThemeMeta[];
+
+export type ThemeId = (typeof themes)[number]["id"];

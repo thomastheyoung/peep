@@ -1,10 +1,12 @@
+import type { Action } from "svelte/action";
+
 const HEADING_SELECTOR = "h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]";
 const SCROLL_OFFSET = 80;
 
-export function scrollSpy(
-	node: HTMLElement,
-	onActiveChange: (id: string | null) => void,
-) {
+export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
+	node,
+	onActiveChange,
+) => {
 	let ticking = false;
 	let currentId: string | null = null;
 
@@ -16,11 +18,13 @@ export function scrollSpy(
 			article.querySelectorAll<HTMLElement>(HEADING_SELECTOR);
 		if (headings.length === 0) return;
 
-		const scrollTop = node.scrollTop;
+		const containerRect = node.getBoundingClientRect();
 		let active: string | null = null;
 
 		for (const h of headings) {
-			if (h.offsetTop - node.offsetTop <= scrollTop + SCROLL_OFFSET) {
+			const headingRect = h.getBoundingClientRect();
+			const relativeTop = headingRect.top - containerRect.top;
+			if (relativeTop <= SCROLL_OFFSET) {
 				active = h.id;
 			} else {
 				break;
@@ -58,4 +62,4 @@ export function scrollSpy(
 			mo.disconnect();
 		},
 	};
-}
+};

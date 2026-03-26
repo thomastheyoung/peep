@@ -74,19 +74,26 @@ describe("renderMarkdown", () => {
 
 describe("isLatestRender (generation tracking)", () => {
 	it("returns true for the most recent render", async () => {
-		const { generation } = await renderMarkdown("test");
-		expect(isLatestRender(generation)).toBe(true);
+		const { generation } = await renderMarkdown("test", "/tmp/test.md");
+		expect(isLatestRender(generation, "/tmp/test.md")).toBe(true);
 	});
 
 	it("returns false for stale renders", async () => {
-		const first = await renderMarkdown("first");
-		await renderMarkdown("second");
-		expect(isLatestRender(first.generation)).toBe(false);
+		const first = await renderMarkdown("first", "/tmp/stale.md");
+		await renderMarkdown("second", "/tmp/stale.md");
+		expect(isLatestRender(first.generation, "/tmp/stale.md")).toBe(false);
 	});
 
 	it("increments generation on each call", async () => {
-		const a = await renderMarkdown("a");
-		const b = await renderMarkdown("b");
+		const a = await renderMarkdown("a", "/tmp/inc.md");
+		const b = await renderMarkdown("b", "/tmp/inc.md");
 		expect(b.generation).toBeGreaterThan(a.generation);
+	});
+
+	it("tracks generations independently per path", async () => {
+		const a = await renderMarkdown("a", "/tmp/fileA.md");
+		const b = await renderMarkdown("b", "/tmp/fileB.md");
+		expect(isLatestRender(a.generation, "/tmp/fileA.md")).toBe(true);
+		expect(isLatestRender(b.generation, "/tmp/fileB.md")).toBe(true);
 	});
 });

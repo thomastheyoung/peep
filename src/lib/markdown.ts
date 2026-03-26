@@ -59,14 +59,16 @@ function getHighlighter(): Promise<Highlighter> {
 	return highlighterPromise;
 }
 
-const marked = new Marked();
-
-let renderGeneration = 0;
+const renderGenerations = new Map<string, number>();
 
 export async function renderMarkdown(
 	source: string,
+	path?: string,
 ): Promise<{ html: string; generation: number; headings: TocHeading[] }> {
-	const generation = ++renderGeneration;
+	const key = path ?? "";
+	const generation = (renderGenerations.get(key) ?? 0) + 1;
+	renderGenerations.set(key, generation);
+
 	const hl = await getHighlighter();
 
 	if (!loadedLangsSet) {
@@ -76,7 +78,8 @@ export async function renderMarkdown(
 	const headings: TocHeading[] = [];
 	const slugCounts = new Map<string, number>();
 
-	marked.use({
+	const md = new Marked();
+	md.use({
 		renderer: {
 			code({ text, lang }) {
 				const language = lang || "text";
@@ -105,12 +108,17 @@ export async function renderMarkdown(
 		},
 	});
 
-	const html = await marked.parse(source);
+	const html = await md.parse(source);
 	return { html, generation, headings };
 }
 
-export function isLatestRender(generation: number): boolean {
-	return generation === renderGeneration;
+export function clearGeneration(path: string): void {
+	renderGenerations.delete(path);
+}
+
+export function isLatestRender(generation: number, path?: string): boolean {
+	const key = path ?? "";
+	return generation === renderGenerations.get(key);
 }
 
 function escapeHtml(text: string): string {

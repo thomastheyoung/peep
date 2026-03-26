@@ -6,6 +6,8 @@
  * All SVG content is hardcoded — no user input is used in innerHTML.
  */
 
+import type { Action } from "svelte/action";
+
 const COPY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="overflow:visible"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" class="copy-rect"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" class="copy-path"/></svg>`;
 
 const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="overflow:visible"><path d="m12 15 2 2 4-4" class="check-path"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
@@ -58,7 +60,7 @@ function attachButtons(node: HTMLElement) {
 	}
 }
 
-export function copyCode(node: HTMLElement) {
+export const copyCode: Action<HTMLElement> = (node) => {
 	attachButtons(node);
 
 	const observer = new MutationObserver(() => {
@@ -72,4 +74,4 @@ export function copyCode(node: HTMLElement) {
 			observer.disconnect();
 		},
 	};
-}
+};

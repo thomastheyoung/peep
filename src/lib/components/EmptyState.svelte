@@ -1,5 +1,9 @@
 <script lang="ts">
-	let { onOpenFile }: { onOpenFile: () => void } = $props();
+	interface Props {
+		onOpenFile: () => void;
+	}
+
+	let { onOpenFile }: Props = $props();
 
 	const stars = Array.from({ length: 50 }, () => ({
 		left: Math.random() * 100,

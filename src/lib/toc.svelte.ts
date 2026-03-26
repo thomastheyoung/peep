@@ -1,29 +1,27 @@
-import type { TocHeading } from "./markdown";
-
-let headings = $state<TocHeading[]>([]);
-let activeId = $state<string | null>(null);
+import { getTabs } from "./tabs.svelte";
 
 export function getToc() {
+	const tabs = getTabs();
+
 	return {
 		get headings() {
-			return headings;
+			return tabs.active?.headings ?? [];
 		},
 		get activeId() {
-			return activeId;
+			return tabs.active?.activeHeadingId ?? null;
 		},
 		get hasHeadings() {
-			return headings.length > 0;
-		},
-		setHeadings(h: TocHeading[]) {
-			headings = h;
-			activeId = h[0]?.id ?? null;
+			return (tabs.active?.headings.length ?? 0) > 0;
 		},
 		setActiveId(id: string | null) {
-			activeId = id;
+			if (tabs.active) {
+				tabs.active.activeHeadingId = id;
+			}
 		},
 		clear() {
-			headings = [];
-			activeId = null;
+			if (tabs.active) {
+				tabs.active.activeHeadingId = null;
+			}
 		},
 	};
 }

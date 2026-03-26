@@ -2,7 +2,11 @@
 	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import { getTabs } from "$lib/tabs.svelte";
 
-	let { onclose }: { onclose: (index: number) => void } = $props();
+	interface Props {
+		onclose: (index: number) => void;
+	}
+
+	let { onclose }: Props = $props();
 
 	const tabs = getTabs();
 	const appWindow = getCurrentWindow();
@@ -40,37 +44,32 @@
 	{#if tabs.items.length > 0}
 		<div class="tabs" role="tablist" tabindex={-1} onkeydown={handleTabListKeydown}>
 			{#each tabs.items as tab, i}
-				<button
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
 					class="tab"
 					class:active={i === tabs.activeIndex}
 					style="--tab-color: {tab.color}"
-					onclick={() => tabs.activate(i)}
 					onmousedown={(e) => handleMiddleClick(e, i)}
-					role="tab"
-					tabindex={i === tabs.activeIndex ? 0 : -1}
-					aria-selected={i === tabs.activeIndex}
-					type="button"
 				>
-					<span class="tab-spacer"></span>
-					<span class="tab-name">{tab.filename}</span>
-					<span
-						class="tab-close"
-						onclick={(e: MouseEvent) => {
-							e.stopPropagation();
-							onclose(i);
-						}}
-						onkeydown={(e: KeyboardEvent) => {
-							if (e.key === 'Enter' || e.key === ' ') {
-								e.preventDefault();
-								e.stopPropagation();
-								onclose(i);
-							}
-						}}
-						tabindex={-1}
-						role="button"
-						aria-label="Close {tab.filename}"></span
+					<button
+						class="tab-label"
+						type="button"
+						role="tab"
+						tabindex={i === tabs.activeIndex ? 0 : -1}
+						aria-selected={i === tabs.activeIndex}
+						onclick={() => tabs.activate(i)}
 					>
-				</button>
+						<span class="tab-spacer"></span>
+						<span class="tab-name">{tab.filename}</span>
+					</button>
+					<button
+						class="tab-close"
+						type="button"
+						onclick={() => onclose(i)}
+						tabindex={-1}
+						aria-label="Close {tab.filename}"
+					></button>
+				</div>
 			{/each}
 		</div>
 	{/if}
@@ -84,8 +83,8 @@
 		flex-shrink: 0;
 		user-select: none;
 		-webkit-user-select: none;
-		background: #161b22;
-		border-bottom: 1px solid #30363d;
+		background: var(--chrome-bg);
+		border-bottom: 1px solid var(--chrome-border);
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
 			Arial, sans-serif;
 	}
@@ -112,13 +111,12 @@
 	.tab {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding: 4px 5px;
+		gap: 0;
+		padding: 0;
 		font-size: 12px;
 		font-weight: 600;
-		border: 2px solid #30363d;
+		border: 2px solid var(--chrome-border);
 		border-radius: 0;
-		cursor: pointer;
 		white-space: nowrap;
 		transition:
 			background 0.15s ease,
@@ -127,33 +125,45 @@
 			box-shadow 0.15s ease,
 			transform 0.1s ease;
 		font-family: inherit;
-		box-shadow: 2px 2px 0 #30363d;
-		background: #21262d;
-		color: #8b949e;
+		box-shadow: 2px 2px 0 var(--chrome-border);
+		background: var(--chrome-surface);
+		color: var(--chrome-text);
+	}
+
+	.tab-label {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 0 4px 5px;
+		cursor: pointer;
+		background: none;
+		border: none;
+		color: inherit;
+		font: inherit;
+	}
+
+	.tab-label:focus-visible {
+		outline: 2px solid var(--chrome-accent);
+		outline-offset: -2px;
 	}
 
 	.tab:hover:not(.active) {
-		background: #282e36;
-		color: #c9d1d9;
+		background: var(--chrome-bg-hover);
+		color: var(--chrome-text-active);
 		transform: translate(-1px, -1px);
-		box-shadow: 3px 3px 0 #30363d;
+		box-shadow: 3px 3px 0 var(--chrome-border);
 	}
 
 	.tab:active {
 		transform: translate(1px, 1px);
-		box-shadow: 1px 1px 0 #30363d;
+		box-shadow: 1px 1px 0 var(--chrome-border);
 	}
 
 	.tab.active {
-		background: var(--tab-color, #58a6ff);
-		color: #0d1117;
-		border-color: color-mix(in srgb, var(--tab-color, #1f6feb) 80%, #000);
-		box-shadow: 2px 2px 0 color-mix(in srgb, var(--tab-color, #1f6feb) 80%, #000);
-	}
-
-	.tab:focus-visible {
-		outline: 2px solid #58a6ff;
-		outline-offset: 2px;
+		background: var(--tab-color, var(--chrome-accent));
+		color: var(--chrome-bg);
+		border-color: color-mix(in srgb, var(--tab-color, var(--chrome-accent)) 80%, #000);
+		box-shadow: 2px 2px 0 color-mix(in srgb, var(--tab-color, var(--chrome-accent)) 80%, #000);
 	}
 
 	.tab-name {
@@ -175,6 +185,7 @@
 		width: 14px;
 		height: 14px;
 		flex-shrink: 0;
+		margin: 0 5px 0 4px;
 		border: 1px solid currentColor;
 		border-radius: 0;
 		cursor: pointer;
@@ -186,6 +197,7 @@
 			border-color 0.1s ease;
 		background: transparent;
 		color: inherit;
+		padding: 0;
 	}
 
 	.tab-close::before,
@@ -211,8 +223,8 @@
 
 	.tab-close:hover {
 		opacity: 1 !important;
-		background: #ef4444;
+		background: var(--chrome-danger, #ef4444);
 		color: #fff;
-		border-color: #ef4444;
+		border-color: var(--chrome-danger, #ef4444);
 	}
 </style>

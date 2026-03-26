@@ -10,6 +10,24 @@ let query = $state("");
 let selectedIndex = $state(0);
 let stack = $state<Level[]>([]);
 
+const filtered: Command[] = $derived.by(() => {
+	const level = stack[stack.length - 1];
+	if (!level) return [];
+	const q = query.toLowerCase();
+	if (!q) return level.commands;
+	return level.commands.filter((cmd) => {
+		if (cmd.label.toLowerCase().includes(q)) return true;
+		return cmd.keywords?.some((k) => k.toLowerCase().includes(q)) ?? false;
+	});
+});
+
+function close() {
+	open = false;
+	query = "";
+	selectedIndex = 0;
+	stack = [];
+}
+
 export function getCommandPalette() {
 	return {
 		get open() {
@@ -27,6 +45,9 @@ export function getCommandPalette() {
 		get depth() {
 			return stack.length;
 		},
+		get filtered() {
+			return filtered;
+		},
 
 		show(commands: Command[]) {
 			stack = [{ commands, title: "Commands" }];
@@ -34,12 +55,7 @@ export function getCommandPalette() {
 			selectedIndex = 0;
 			open = true;
 		},
-		close() {
-			open = false;
-			query = "";
-			selectedIndex = 0;
-			stack = [];
-		},
+		close,
 		back() {
 			if (stack.length > 1) {
 				stack.pop();
@@ -47,7 +63,7 @@ export function getCommandPalette() {
 				query = "";
 				selectedIndex = 0;
 			} else {
-				this.close();
+				close();
 			}
 		},
 		drillIn(children: Command[], title: string) {

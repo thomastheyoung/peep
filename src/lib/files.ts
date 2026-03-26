@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { renderMarkdown, isLatestRender } from "./markdown";
+import { renderMarkdown, isLatestRender, clearGeneration } from "./markdown";
 import { getTabs } from "./tabs.svelte";
 import type { FileContent } from "./types";
 
@@ -23,9 +23,13 @@ export function clearAllTimers() {
 export async function openFile(path: string) {
 	try {
 		const result = await invoke<FileContent>("read_file", { path });
-		const { html, headings } = await renderMarkdown(result.content);
+		const { html, headings } = await renderMarkdown(result.content, result.path);
+		try {
+			await invoke("watch_file", { path: result.path });
+		} catch (err) {
+			console.error(`Failed to watch ${result.path}:`, err);
+		}
 		tabs.add({ ...result, rendered: html, headings });
-		await invoke("watch_file", { path: result.path });
 	} catch (err) {
 		console.error(`Failed to open ${path}:`, err);
 	}
@@ -36,6 +40,7 @@ export async function closeTab(index: number) {
 	if (!tab) return;
 	const { path } = tab;
 	clearDebounceTimer(path);
+	clearGeneration(path);
 	tabs.close(index);
 	try {
 		await invoke("unwatch_file", { path });
@@ -51,8 +56,8 @@ export function handleFileChanged(payload: FileContent) {
 		setTimeout(async () => {
 			debounceTimers.delete(payload.path);
 			try {
-				const { html, generation, headings } = await renderMarkdown(payload.content);
-				if (!isLatestRender(generation)) return;
+				const { html, generation, headings } = await renderMarkdown(payload.content, payload.path);
+				if (!isLatestRender(generation, payload.path)) return;
 				tabs.update(payload.path, payload.content, html, headings);
 			} catch (err) {
 				console.error(`Failed to render ${payload.path}:`, err);
@@ -62,14 +67,16 @@ export function handleFileChanged(payload: FileContent) {
 }
 
 export async function openFileDialog() {
-	const result = await openDialog({
-		multiple: true,
-		filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-	});
-	if (result) {
-		const paths = Array.isArray(result) ? result : [result];
-		for (const path of paths) {
-			await openFile(path);
+	try {
+		const result = await openDialog({
+			multiple: true,
+			filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+		});
+		if (result) {
+			const paths = Array.isArray(result) ? result : [result];
+			await Promise.allSettled(paths.map((path) => openFile(path)));
 		}
+	} catch (err) {
+		console.error("Failed to open file dialog:", err);
 	}
 }

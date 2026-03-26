@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { getToc } from '$lib/toc.svelte';
 
-	let { scrollContainer }: { scrollContainer: HTMLElement | undefined } = $props();
+	interface Props {
+		scrollContainer: HTMLElement | undefined;
+	}
+
+	let { scrollContainer }: Props = $props();
 
 	const toc = getToc();
 
@@ -97,9 +101,9 @@
 		align-items: center;
 		gap: 2px;
 		padding: 4px;
-		background: #21262d;
-		border: 2px solid #30363d;
-		box-shadow: 3px 3px 0 #30363d;
+		background: var(--chrome-surface);
+		border: 2px solid var(--chrome-border);
+		box-shadow: 3px 3px 0 var(--chrome-border);
 		animation: dock-in 200ms ease-out;
 	}
 
@@ -122,7 +126,7 @@
 		height: 28px;
 		border: none;
 		background: transparent;
-		color: #8b949e;
+		color: var(--chrome-text);
 		cursor: pointer;
 		padding: 0;
 		transition:
@@ -131,17 +135,17 @@
 	}
 
 	.dock-btn:hover {
-		color: #c9d1d9;
-		background: #282e36;
+		color: var(--chrome-text-active);
+		background: var(--chrome-bg-hover);
 	}
 
 	.dock-btn.active {
-		color: #f0f6fc;
-		background: #30363d;
+		color: var(--chrome-text-active);
+		background: var(--chrome-border);
 	}
 
 	.dock-btn:focus-visible {
-		outline: 2px solid #58a6ff;
+		outline: 2px solid var(--chrome-accent);
 		outline-offset: -2px;
 	}
 
@@ -197,7 +201,7 @@
 
 	.toc-line.active .toc-bar {
 		opacity: 1;
-		background: var(--md-accent, #58a6ff);
+		background: var(--md-accent, var(--chrome-accent));
 		height: 2.5px;
 	}
 
@@ -222,7 +226,6 @@
 			opacity 180ms ease,
 			max-width 180ms ease;
 		color: inherit;
-		opacity: 0;
 	}
 
 	.toc-strip:hover .toc-label {
@@ -232,7 +235,7 @@
 
 	.toc-strip:hover .toc-line.active .toc-label {
 		opacity: 1;
-		color: var(--md-accent, #58a6ff);
+		color: var(--md-accent, var(--chrome-accent));
 	}
 
 	.toc-strip:hover .toc-line:hover .toc-label {

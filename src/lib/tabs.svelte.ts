@@ -6,6 +6,7 @@ export interface Tab {
 	content: string;
 	rendered: string;
 	headings: TocHeading[];
+	activeHeadingId: string | null;
 	color: string;
 }
 
@@ -32,13 +33,13 @@ export function getTabs() {
 		get active(): Tab | undefined {
 			return tabs[activeIndex];
 		},
-		add(tab: Omit<Tab, 'color'>) {
+		add(tab: Omit<Tab, 'color' | 'activeHeadingId'>) {
 			const existing = tabs.findIndex((t) => t.path === tab.path);
 			if (existing >= 0) {
 				activeIndex = existing;
 				return;
 			}
-			tabs.push({ ...tab, color: nextColor() });
+			tabs.push({ ...tab, activeHeadingId: tab.headings[0]?.id ?? null, color: nextColor() });
 			activeIndex = tabs.length - 1;
 		},
 		update(path: string, content: string, rendered: string, headings: TocHeading[]) {
@@ -49,6 +50,9 @@ export function getTabs() {
 			existing.content = content;
 			existing.rendered = rendered;
 			existing.headings = headings;
+			if (existing.activeHeadingId && !headings.some((h) => h.id === existing.activeHeadingId)) {
+				existing.activeHeadingId = headings[0]?.id ?? null;
+			}
 		},
 		close(index: number) {
 			if (index < 0 || index >= tabs.length) return;

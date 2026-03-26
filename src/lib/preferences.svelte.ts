@@ -1,4 +1,5 @@
 import { getThemeState } from "./themes/theme.svelte";
+import { themes, type ThemeId } from "./themes/registry";
 
 export type ContentWidth = "auto" | "wide" | "full";
 export type SettingsSection = "appearance" | "layout" | "font";
@@ -8,22 +9,22 @@ export type SettingsSection = "appearance" | "layout" | "font";
 // the Preferences panel and the command palette.
 // ---------------------------------------------------------------------------
 
-export interface ChoiceOption {
-	value: string;
+export interface ChoiceOption<T extends string = string> {
+	value: T;
 	label: string;
 	description?: string;
 	swatches?: { bg: string; text: string; accent: string };
 }
 
-export interface ChoiceSetting {
+export interface ChoiceSetting<T extends string = string> {
 	type: "choice";
 	id: string;
 	label: string;
 	section: SettingsSection;
 	keywords: string[];
-	options: ChoiceOption[];
-	value: string;
-	select: (value: string) => void | Promise<void>;
+	options: ChoiceOption<T>[];
+	value: T;
+	select: (value: T) => void | Promise<void>;
 }
 
 export interface RangeSetting {
@@ -64,13 +65,18 @@ interface StoredPreferences {
 	lineHeight?: number;
 }
 
-function loadStored(): StoredPreferences {
+function parseStoredPreferences(raw: string | null): Partial<StoredPreferences> {
+	if (!raw) return {};
 	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw ? JSON.parse(raw) : {};
+		const parsed = JSON.parse(raw);
+		return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
 	} catch {
 		return {};
 	}
+}
+
+function loadStored(): Partial<StoredPreferences> {
+	return parseStoredPreferences(localStorage.getItem(STORAGE_KEY));
 }
 
 function saveStored(prefs: StoredPreferences) {
@@ -168,10 +174,97 @@ export function getPreferences() {
 		saveStored(allStored(themeState.id));
 	}
 
-	async function setThemeValue(id: string) {
+	async function setThemeValue(id: ThemeId) {
 		await themeState.setTheme(id);
 		saveStored(allStored(id));
 	}
+
+	const settings: SettingDef[] = $derived([
+		{
+			type: "choice",
+			id: "theme",
+			label: "Theme",
+			section: "appearance",
+			keywords: ["color", "dark", "light", "appearance"],
+			options: themeState.all.map((t) => ({
+				value: t.id,
+				label: t.name,
+				swatches: t.colors,
+			})),
+			value: themeState.id,
+			select: setThemeValue,
+		} satisfies ChoiceSetting<ThemeId> as SettingDef,
+		{
+			type: "choice",
+			id: "content-width",
+			label: "Content width",
+			section: "layout",
+			keywords: ["layout", "narrow", "wide", "full"],
+			options: [
+				{ value: "auto", label: "Auto", description: "Optimized for reading (~80 chars)" },
+				{ value: "wide", label: "Wide", description: "More room for tables and code" },
+				{ value: "full", label: "Full", description: "Use the entire window width" },
+			],
+			value: contentWidth,
+			select: setContentWidthValue,
+		} satisfies ChoiceSetting<ContentWidth> as SettingDef,
+		{
+			type: "range",
+			id: "zoom",
+			label: "Zoom",
+			section: "layout",
+			keywords: ["magnify", "bigger", "smaller", "scale"],
+			min: ZOOM_MIN,
+			max: ZOOM_MAX,
+			step: ZOOM_STEP,
+			value: zoomLevel,
+			defaultValue: ZOOM_DEFAULT,
+			set: setZoomValue,
+			format: (v) => `${Math.round(v * 100)}%`,
+		},
+		{
+			type: "range",
+			id: "font-weight",
+			label: "Weight",
+			section: "font",
+			keywords: ["bold", "light", "regular", "medium", "semibold"],
+			min: FONT_WEIGHT_MIN,
+			max: FONT_WEIGHT_MAX,
+			step: FONT_WEIGHT_STEP,
+			value: fontWeight,
+			defaultValue: FONT_WEIGHT_DEFAULT,
+			set: setFontWeightValue,
+			format: (v) => FONT_WEIGHT_LABELS[v] ?? String(v),
+		},
+		{
+			type: "range",
+			id: "letter-spacing",
+			label: "Letter spacing",
+			section: "font",
+			keywords: ["tracking", "kerning", "spacing"],
+			min: LETTER_SPACING_MIN,
+			max: LETTER_SPACING_MAX,
+			step: LETTER_SPACING_STEP,
+			value: letterSpacing,
+			defaultValue: LETTER_SPACING_DEFAULT,
+			set: setLetterSpacingValue,
+			format: formatLetterSpacing,
+		},
+		{
+			type: "range",
+			id: "line-height",
+			label: "Line height",
+			section: "font",
+			keywords: ["leading", "spacing", "vertical"],
+			min: LINE_HEIGHT_MIN,
+			max: LINE_HEIGHT_MAX,
+			step: LINE_HEIGHT_STEP,
+			value: lineHeight,
+			defaultValue: LINE_HEIGHT_DEFAULT,
+			set: setLineHeightValue,
+			format: (v) => v.toFixed(1),
+		},
+	]);
 
 	return {
 		// CSS value getters — consumed by +page.svelte for inline styles
@@ -202,102 +295,8 @@ export function getPreferences() {
 			return themeState;
 		},
 
-		// ---------------------------------------------------------------
-		// Settings registry — the single list that drives both the
-		// Preferences panel and the command palette.
-		// ---------------------------------------------------------------
-		get settings(): SettingDef[] {
-			return [
-				// Appearance
-				{
-					type: "choice",
-					id: "theme",
-					label: "Theme",
-					section: "appearance",
-					keywords: ["color", "dark", "light", "appearance"],
-					options: themeState.all.map((t) => ({
-						value: t.id,
-						label: t.name,
-						swatches: t.colors,
-					})),
-					value: themeState.id,
-					select: setThemeValue,
-				},
-
-				// Layout
-				{
-					type: "choice",
-					id: "content-width",
-					label: "Content width",
-					section: "layout",
-					keywords: ["layout", "narrow", "wide", "full"],
-					options: [
-						{ value: "auto", label: "Auto", description: "Optimized for reading (~80 chars)" },
-						{ value: "wide", label: "Wide", description: "More room for tables and code" },
-						{ value: "full", label: "Full", description: "Use the entire window width" },
-					],
-					value: contentWidth,
-					select: (v) => setContentWidthValue(v as ContentWidth),
-				},
-				{
-					type: "range",
-					id: "zoom",
-					label: "Zoom",
-					section: "layout",
-					keywords: ["magnify", "bigger", "smaller", "scale"],
-					min: ZOOM_MIN,
-					max: ZOOM_MAX,
-					step: ZOOM_STEP,
-					value: zoomLevel,
-					defaultValue: ZOOM_DEFAULT,
-					set: setZoomValue,
-					format: (v) => `${Math.round(v * 100)}%`,
-				},
-
-				// Font
-				{
-					type: "range",
-					id: "font-weight",
-					label: "Weight",
-					section: "font",
-					keywords: ["bold", "light", "regular", "medium", "semibold"],
-					min: FONT_WEIGHT_MIN,
-					max: FONT_WEIGHT_MAX,
-					step: FONT_WEIGHT_STEP,
-					value: fontWeight,
-					defaultValue: FONT_WEIGHT_DEFAULT,
-					set: setFontWeightValue,
-					format: (v) => FONT_WEIGHT_LABELS[v] ?? String(v),
-				},
-				{
-					type: "range",
-					id: "letter-spacing",
-					label: "Letter spacing",
-					section: "font",
-					keywords: ["tracking", "kerning", "spacing"],
-					min: LETTER_SPACING_MIN,
-					max: LETTER_SPACING_MAX,
-					step: LETTER_SPACING_STEP,
-					value: letterSpacing,
-					defaultValue: LETTER_SPACING_DEFAULT,
-					set: setLetterSpacingValue,
-					format: formatLetterSpacing,
-				},
-				{
-					type: "range",
-					id: "line-height",
-					label: "Line height",
-					section: "font",
-					keywords: ["leading", "spacing", "vertical"],
-					min: LINE_HEIGHT_MIN,
-					max: LINE_HEIGHT_MAX,
-					step: LINE_HEIGHT_STEP,
-					value: lineHeight,
-					defaultValue: LINE_HEIGHT_DEFAULT,
-					set: setLineHeightValue,
-					format: (v) => v.toFixed(1),
-				},
-			];
+		get settings() {
+			return settings;
 		},
 
 		// Direct setters — used by zoom event handler, keyboard shortcuts, etc.
@@ -311,7 +310,7 @@ export function getPreferences() {
 			setZoomValue(ZOOM_DEFAULT);
 		},
 
-		async setTheme(id: string) {
+		async setTheme(id: ThemeId) {
 			await setThemeValue(id);
 		},
 
@@ -332,12 +331,12 @@ export function getPreferences() {
 		async init() {
 			const stored = loadStored();
 			if (stored.contentWidth) contentWidth = stored.contentWidth;
-			if (stored.zoomLevel) zoomLevel = stored.zoomLevel;
+			if (stored.zoomLevel != null) zoomLevel = stored.zoomLevel;
 			if (stored.fontWeight != null) fontWeight = stored.fontWeight;
 			if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
 			if (stored.lineHeight != null) lineHeight = stored.lineHeight;
-			if (stored.theme) {
-				await themeState.setTheme(stored.theme);
+			if (stored.theme && themes.some((t) => t.id === stored.theme)) {
+				await themeState.setTheme(stored.theme as ThemeId);
 			} else {
 				await themeState.init();
 			}

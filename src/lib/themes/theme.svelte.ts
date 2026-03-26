@@ -1,8 +1,8 @@
-import { themes } from "./registry";
+import { themes, type ThemeId } from "./registry";
 
 const STORAGE_KEY = "md-theme";
 
-let activeId = $state("github-dark");
+let activeId: ThemeId = $state("github-dark");
 let activeCss = $state("");
 
 export function getThemeState() {
@@ -19,7 +19,7 @@ export function getThemeState() {
 		get all() {
 			return themes;
 		},
-		async setTheme(id: string) {
+		async setTheme(id: ThemeId) {
 			const meta = themes.find((t) => t.id === id);
 			if (!meta) return;
 			const css = await meta.load();
@@ -29,8 +29,10 @@ export function getThemeState() {
 		},
 		async init() {
 			const saved = localStorage.getItem(STORAGE_KEY);
-			const id =
-				saved && themes.find((t) => t.id === saved) ? saved : "github-dark";
+			const id: ThemeId =
+				saved && themes.find((t) => t.id === saved)
+					? (saved as ThemeId)
+					: "github-dark";
 			await this.setTheme(id);
 		},
 	};

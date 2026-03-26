@@ -2,7 +2,7 @@
 	const tabs = ['README.md', 'CHANGELOG.md', 'design-notes.md', 'api-docs.md'];
 	let activeIndex = $state(1);
 
-	function close(index: number) {
+	function close(_index: number) {
 		// Visual demo only — no real close logic
 		activeIndex = Math.min(activeIndex, tabs.length - 2);
 	}

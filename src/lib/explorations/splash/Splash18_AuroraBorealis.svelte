@@ -5,7 +5,7 @@
 		<div class="aurora a2"></div>
 		<div class="aurora a3"></div>
 		<div class="stars">
-			{#each Array(30) as _, i}
+			{#each Array(30) as _}
 				<span
 					class="star"
 					style="

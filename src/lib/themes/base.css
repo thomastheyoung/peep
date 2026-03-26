@@ -1,6 +1,16 @@
 @layer base, theme;
 
 @layer base {
+	:root {
+		--chrome-bg: #161b22;
+		--chrome-bg-hover: #282e36;
+		--chrome-border: #30363d;
+		--chrome-text: #8b949e;
+		--chrome-text-active: #c9d1d9;
+		--chrome-surface: #21262d;
+		--chrome-accent: #58a6ff;
+	}
+
 	/* Markdown content — structural defaults */
 	.markdown-body {
 		max-width: var(--md-content-width, 780px);

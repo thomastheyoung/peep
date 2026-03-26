@@ -1,6 +1,6 @@
 export interface ThemeMeta {
-	id: string;
-	name: string;
-	colors: { bg: string; text: string; accent: string };
-	load: () => Promise<string>;
+	readonly id: string;
+	readonly name: string;
+	readonly colors: { readonly bg: string; readonly text: string; readonly accent: string };
+	readonly load: () => Promise<string>;
 }

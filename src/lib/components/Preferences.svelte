@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
-	import { getPreferences, settingsSections, type RangeSetting } from "$lib/preferences.svelte";
+	import { getPreferences, settingsSections } from "$lib/preferences.svelte";
 
 	const prefs = getPreferences();
 
@@ -121,19 +121,18 @@
 								{/if}
 
 							{:else if setting.type === "range"}
-								{@const range = setting as RangeSetting}
 								<div class="setting-group">
 									<div class="setting-row">
-										<span class="setting-value">{range.format(range.value)}</span>
+										<span class="setting-value">{setting.format(setting.value)}</span>
 									</div>
 									<input
 										type="range"
 										class="slider"
-										min={range.min}
-										max={range.max}
-										step={range.step}
-										value={range.value}
-										oninput={(e) => range.set(Number(e.currentTarget.value))}
+										min={setting.min}
+										max={setting.max}
+										step={setting.step}
+										value={setting.value}
+										oninput={(e) => setting.set(Number(e.currentTarget.value))}
 									/>
 								</div>
 							{/if}
@@ -446,6 +445,11 @@
 		cursor: pointer;
 		border: none;
 		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	}
+
+	.slider:focus-visible {
+		outline: 2px solid var(--chrome-accent, #58a6ff);
+		outline-offset: 2px;
 	}
 
 	.slider::-webkit-slider-thumb:hover {

@@ -37,38 +37,43 @@ function rangeSteps(s: RangeSetting): number[] {
 }
 
 function commandFromSetting(setting: SettingDef): Command {
-	if (setting.type === "choice") {
-		const current = setting.options.find((o) => o.value === setting.value);
-		return {
-			id: setting.id,
-			label: `${setting.label}...`,
-			keywords: setting.keywords,
-			detail: current?.label,
-			children: () =>
-				setting.options.map((o) => ({
-					id: `${setting.id}:${o.value}`,
-					label: o.label,
-					swatches: o.swatches,
-					detail: setting.value === o.value ? "✓" : undefined,
-					action: () => setting.select(o.value),
-				})),
-		};
+	switch (setting.type) {
+		case "choice": {
+			const current = setting.options.find((o) => o.value === setting.value);
+			return {
+				id: setting.id,
+				label: `${setting.label}...`,
+				keywords: setting.keywords,
+				detail: current?.label,
+				children: () =>
+					setting.options.map((o) => ({
+						id: `${setting.id}:${o.value}`,
+						label: o.label,
+						swatches: o.swatches,
+						detail: setting.value === o.value ? "✓" : undefined,
+						action: () => setting.select(o.value),
+					})),
+			};
+		}
+		case "range":
+			return {
+				id: setting.id,
+				label: `${setting.label}...`,
+				keywords: setting.keywords,
+				detail: setting.format(setting.value),
+				children: () =>
+					rangeSteps(setting).map((v) => ({
+						id: `${setting.id}:${v}`,
+						label: setting.format(v),
+						detail: v === setting.value ? "✓" : undefined,
+						action: () => setting.set(v),
+					})),
+			};
+		default: {
+			const _exhaustive: never = setting;
+			throw new Error(`Unknown setting type: ${(_exhaustive as SettingDef).type}`);
+		}
 	}
-
-	// Range → drill-in showing discrete steps
-	return {
-		id: setting.id,
-		label: `${setting.label}...`,
-		keywords: setting.keywords,
-		detail: setting.format(setting.value),
-		children: () =>
-			rangeSteps(setting).map((v) => ({
-				id: `${setting.id}:${v}`,
-				label: setting.format(v),
-				detail: v === setting.value ? "✓" : undefined,
-				action: () => setting.set(v),
-			})),
-	};
 }
 
 // Shortcuts for zoom — keep as top-level commands for discoverability
