@@ -13,10 +13,11 @@
 	import { toc } from "$lib/toc.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
 	import FloatingDock from "$lib/components/FloatingDock.svelte";
-	import EmptyState from "$lib/components/EmptyState.svelte";
+	import EmptyState from "$lib/components/EmptyStateStamp.svelte";
 	import Preferences from "$lib/components/Preferences.svelte";
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
 	import "$lib/themes/base.css";
+	import "katex/dist/katex.min.css";
 
 	let contentEl: HTMLElement | undefined = $state();
 

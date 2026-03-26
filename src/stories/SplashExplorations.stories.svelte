@@ -23,6 +23,12 @@
   import Splash19 from '$lib/explorations/splash/Splash19_VinylRecord.svelte';
   import Splash20 from '$lib/explorations/splash/Splash20_PaperAirplane.svelte';
   import Splash21 from '$lib/explorations/splash/Splash21_AuroraHome.svelte';
+  import Splash22 from '$lib/explorations/splash/Splash22_Brutalist.svelte';
+  import Splash23 from '$lib/explorations/splash/Splash23_Stamp.svelte';
+  import Splash24 from '$lib/explorations/splash/Splash24_Scaffold.svelte';
+  import Splash25 from '$lib/explorations/splash/Splash25_SplitFlap.svelte';
+  import Splash26 from '$lib/explorations/splash/Splash26_Stencil.svelte';
+  import Splash27 from '$lib/explorations/splash/Splash27_Concrete.svelte';
 
   const { Story } = defineMeta({
     title: 'Design Explorations/Splash Screens',
@@ -115,4 +121,28 @@
 
 <Story name="21 Aurora Home" exportName="AuroraHome">
   <Splash21 />
+</Story>
+
+<Story name="22 Brutalist" exportName="Brutalist">
+  <Splash22 />
+</Story>
+
+<Story name="23 Stamp" exportName="Stamp">
+  <Splash23 />
+</Story>
+
+<Story name="24 Scaffold" exportName="Scaffold">
+  <Splash24 />
+</Story>
+
+<Story name="25 Split Flap" exportName="SplitFlap">
+  <Splash25 />
+</Story>
+
+<Story name="26 Stencil" exportName="Stencil">
+  <Splash26 />
+</Story>
+
+<Story name="27 Concrete" exportName="Concrete">
+  <Splash27 />
 </Story>
