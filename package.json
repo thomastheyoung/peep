@@ -26,7 +26,9 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
+    "katex": "^0.16.43",
     "marked": "^17.0.5",
+    "marked-katex-extension": "^5.1.7",
     "shiki": "^4.0.2"
   },
   "devDependencies": {

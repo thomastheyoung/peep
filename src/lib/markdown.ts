@@ -1,4 +1,6 @@
 import { Marked } from "marked";
+import markedKatex from "marked-katex-extension";
+import katex from "katex";
 import {
 	createCssVariablesTheme,
 	createHighlighter,
@@ -79,9 +81,17 @@ export async function renderMarkdown(
 	const slugCounts = new Map<string, number>();
 
 	const md = new Marked();
+	md.use(markedKatex({ throwOnError: false, nonStandard: true }));
 	md.use({
 		renderer: {
 			code({ text, lang }) {
+				if (lang === "math" || lang === "katex") {
+					try {
+						return `<div class="katex-block">${katex.renderToString(text, { displayMode: true, throwOnError: false })}</div>`;
+					} catch {
+						return `<pre><code class="language-math">${escapeHtml(text)}</code></pre>`;
+					}
+				}
 				const language = lang || "text";
 				try {
 					if (loadedLangsSet!.has(language)) {
