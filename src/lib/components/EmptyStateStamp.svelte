@@ -202,6 +202,7 @@
 		background: var(--chrome-surface, #161b22);
 		border: 2px solid var(--chrome-border, #30363d);
 		box-shadow: 4px 4px 0 var(--chrome-border, #30363d);
+		font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
 	}
 
 	.help-row {

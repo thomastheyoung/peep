@@ -235,7 +235,7 @@
 
 	.tagline {
 		margin: 6px 0 0;
-		font-family: 'Comfortaa', sans-serif;
+		font-family: 'Space Grotesk', sans-serif;
 		font-size: 15px;
 		font-weight: 400;
 		letter-spacing: 0.04em;
@@ -315,7 +315,7 @@
 		justify-content: center;
 		min-width: 44px;
 		padding: 5px 10px;
-		font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+		font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
 		font-size: 13px;
 		font-weight: 500;
 		color: rgba(226, 232, 240, 0.95);

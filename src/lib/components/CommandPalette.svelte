@@ -200,7 +200,7 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+		font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
 		font-size: 13px;
 		color: #e0e0e0;
 		text-shadow: none;

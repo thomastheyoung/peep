@@ -164,7 +164,7 @@
 		display: flex;
 		flex-direction: column;
 		font-family:
-			-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+			"Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
 			sans-serif;
 		transition:
 			background-color 0.2s,
