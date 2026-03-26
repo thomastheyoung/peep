@@ -1,27 +1,27 @@
-import { getTabs } from "./tabs.svelte";
+import { tabs } from "./tabs.svelte";
 
-export function getToc() {
-	const tabs = getTabs();
-
-	return {
-		get headings() {
-			return tabs.active?.headings ?? [];
-		},
-		get activeId() {
-			return tabs.active?.activeHeadingId ?? null;
-		},
-		get hasHeadings() {
-			return (tabs.active?.headings.length ?? 0) > 0;
-		},
-		setActiveId(id: string | null) {
-			if (tabs.active) {
-				tabs.active.activeHeadingId = id;
-			}
-		},
-		clear() {
-			if (tabs.active) {
-				tabs.active.activeHeadingId = null;
-			}
-		},
-	};
+export interface TocAPI {
+	readonly headings: import("./markdown").TocHeading[];
+	readonly activeId: string | null;
+	readonly hasHeadings: boolean;
+	setActiveId(id: string | null): void;
+	clear(): void;
 }
+
+export const toc: TocAPI = {
+	get headings() {
+		return tabs.active?.headings ?? [];
+	},
+	get activeId() {
+		return tabs.active?.activeHeadingId ?? null;
+	},
+	get hasHeadings() {
+		return (tabs.active?.headings.length ?? 0) > 0;
+	},
+	setActiveId(id: string | null) {
+		tabs.setActiveHeadingId(id);
+	},
+	clear() {
+		tabs.setActiveHeadingId(null);
+	},
+};

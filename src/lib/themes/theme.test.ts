@@ -18,14 +18,13 @@ vi.mock("./registry", () => ({
 	],
 }));
 
-import { getThemeState } from "./theme.svelte";
+import { themeState } from "./theme.svelte";
 
 describe("theme state", () => {
-	let theme: ReturnType<typeof getThemeState>;
+	const theme = themeState;
 
 	beforeEach(async () => {
 		localStorage.clear();
-		theme = getThemeState();
 		// Reset singleton to first theme (mock-dark)
 		await theme.setTheme("mock-dark");
 		localStorage.clear(); // clear the setTheme persistence

@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
-	import { getPreferences, settingsSections } from "$lib/preferences.svelte";
-
-	const prefs = getPreferences();
+	import { preferences as prefs, settingsSections } from "$lib/preferences.svelte";
 
 	const sectionSettings = $derived(
 		Object.groupBy(prefs.settings, (s) => s.section),
@@ -14,6 +12,7 @@
 		currentSettings.some((s) => s.type === "range" && s.value !== s.defaultValue),
 	);
 
+	let dialogEl: HTMLDialogElement | undefined = $state();
 	let isDefaultViewer = $state<boolean | null>(null);
 
 	async function checkDefaultViewer() {
@@ -27,7 +26,10 @@
 
 	$effect(() => {
 		if (prefs.showPanel) {
+			dialogEl?.showModal();
 			checkDefaultViewer();
+		} else {
+			dialogEl?.close();
 		}
 	});
 
@@ -39,24 +41,25 @@
 		}
 	}
 
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === "Escape") {
-			e.preventDefault();
-			prefs.closePanel();
-		}
+	function handleCancel(e: Event) {
+		e.preventDefault();
+		prefs.closePanel();
 	}
 
-	function handleBackdropClick(e: MouseEvent) {
-		if (e.target === e.currentTarget) {
+	function handleDialogClick(e: MouseEvent) {
+		if (e.target === dialogEl) {
 			prefs.closePanel();
 		}
 	}
 </script>
 
-{#if prefs.showPanel}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="backdrop" onclick={handleBackdropClick} onkeydown={handleKeydown}>
-		<div class="panel" role="dialog" aria-label="Preferences">
+<dialog
+	bind:this={dialogEl}
+	class="panel"
+	aria-label="Preferences"
+	oncancel={handleCancel}
+	onclick={handleDialogClick}
+>
 			<header class="panel-header">
 				<h2>Preferences</h2>
 				<button class="close-btn" onclick={() => prefs.closePanel()} aria-label="Close preferences">
@@ -161,24 +164,11 @@
 					{/if}
 				</div>
 			</div>
-		</div>
-	</div>
-{/if}
+	</dialog>
 
 <style>
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 2000;
-		background: rgba(0, 0, 0, 0.4);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.panel {
+	dialog.panel {
+		padding: 0;
 		width: 640px;
 		max-height: 80vh;
 		border-radius: 12px;
@@ -198,6 +188,12 @@
 		font-weight: 400;
 		letter-spacing: normal;
 		text-transform: none;
+	}
+
+	dialog.panel::backdrop {
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
 	}
 
 	.panel-header {

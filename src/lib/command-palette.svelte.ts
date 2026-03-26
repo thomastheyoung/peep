@@ -5,6 +5,21 @@ interface Level {
 	title: string;
 }
 
+export interface CommandPaletteAPI {
+	readonly open: boolean;
+	readonly query: string;
+	readonly selectedIndex: number;
+	readonly currentLevel: Level | undefined;
+	readonly depth: number;
+	readonly filtered: Command[];
+	show(commands: Command[]): void;
+	close(): void;
+	back(): void;
+	drillIn(children: Command[], title: string): void;
+	setQuery(q: string): void;
+	setSelectedIndex(i: number): void;
+}
+
 let open = $state(false);
 let query = $state("");
 let selectedIndex = $state(0);
@@ -28,55 +43,53 @@ function close() {
 	stack = [];
 }
 
-export function getCommandPalette() {
-	return {
-		get open() {
-			return open;
-		},
-		get query() {
-			return query;
-		},
-		get selectedIndex() {
-			return selectedIndex;
-		},
-		get currentLevel(): Level | undefined {
-			return stack[stack.length - 1];
-		},
-		get depth() {
-			return stack.length;
-		},
-		get filtered() {
-			return filtered;
-		},
+export const commandPalette: CommandPaletteAPI = {
+	get open() {
+		return open;
+	},
+	get query() {
+		return query;
+	},
+	get selectedIndex() {
+		return selectedIndex;
+	},
+	get currentLevel(): Level | undefined {
+		return stack[stack.length - 1];
+	},
+	get depth() {
+		return stack.length;
+	},
+	get filtered() {
+		return filtered;
+	},
 
-		show(commands: Command[]) {
-			stack = [{ commands, title: "Commands" }];
+	show(commands: Command[]) {
+		stack = [{ commands, title: "Commands" }];
+		query = "";
+		selectedIndex = 0;
+		open = true;
+	},
+	close,
+	back() {
+		if (stack.length > 1) {
+			stack.pop();
+			stack = [...stack];
 			query = "";
 			selectedIndex = 0;
-			open = true;
-		},
-		close,
-		back() {
-			if (stack.length > 1) {
-				stack.pop();
-				stack = [...stack];
-				query = "";
-				selectedIndex = 0;
-			} else {
-				close();
-			}
-		},
-		drillIn(children: Command[], title: string) {
-			stack = [...stack, { commands: children, title }];
-			query = "";
-			selectedIndex = 0;
-		},
-		setQuery(q: string) {
-			query = q;
-			selectedIndex = 0;
-		},
-		setSelectedIndex(i: number) {
-			selectedIndex = i;
-		},
-	};
-}
+		} else {
+			close();
+		}
+	},
+	drillIn(children: Command[], title: string) {
+		stack = [...stack, { commands: children, title }];
+		query = "";
+		selectedIndex = 0;
+	},
+	setQuery(q: string) {
+		query = q;
+		selectedIndex = 0;
+	},
+	setSelectedIndex(i: number) {
+		selectedIndex = i;
+	},
+};

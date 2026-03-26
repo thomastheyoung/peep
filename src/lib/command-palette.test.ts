@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getCommandPalette } from "./command-palette.svelte";
+import { commandPalette } from "./command-palette.svelte";
 import type { Command } from "./commands";
 
 const fakeCommands: Command[] = [
@@ -16,10 +16,9 @@ const fakeCommands: Command[] = [
 ];
 
 describe("command-palette", () => {
-	let palette: ReturnType<typeof getCommandPalette>;
+	const palette = commandPalette;
 
 	beforeEach(() => {
-		palette = getCommandPalette();
 		// Ensure closed state
 		palette.close();
 	});

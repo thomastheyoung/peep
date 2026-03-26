@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { getCurrentWindow } from "@tauri-apps/api/window";
-	import { getTabs } from "$lib/tabs.svelte";
+	import { tabs } from "$lib/tabs.svelte";
 
 	interface Props {
 		onclose: (index: number) => void;
 	}
 
 	let { onclose }: Props = $props();
-
-	const tabs = getTabs();
 	const appWindow = getCurrentWindow();
 
 	function handleDrag(e: MouseEvent) {

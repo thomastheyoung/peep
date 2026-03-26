@@ -1,11 +1,8 @@
 <script lang="ts">
-	import { getCommandPalette } from "$lib/command-palette.svelte";
+	import { commandPalette as palette } from "$lib/command-palette.svelte";
 	import type { Command } from "$lib/commands";
-	import { getTabs } from "$lib/tabs.svelte";
+	import { tabs as tabState } from "$lib/tabs.svelte";
 	import ThemePreview from "./ThemePreview.svelte";
-
-	const palette = getCommandPalette();
-	const tabState = getTabs();
 
 	const MAX_PREVIEW_LINES = 100;
 
@@ -17,6 +14,7 @@
 		return lines.slice(0, MAX_PREVIEW_LINES).join("\n");
 	});
 
+	let dialogEl: HTMLDialogElement | undefined = $state();
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLDivElement | undefined = $state();
 
@@ -35,9 +33,12 @@
 
 	$effect(() => {
 		if (palette.open) {
+			dialogEl?.showModal();
 			// Focus input when palette opens or drills in/out
 			palette.depth; // track depth changes
 			requestAnimationFrame(() => inputEl?.focus());
+		} else {
+			dialogEl?.close();
 		}
 	});
 
@@ -63,9 +64,6 @@
 			e.preventDefault();
 			const cmd = filtered[palette.selectedIndex];
 			if (cmd) executeCommand(cmd);
-		} else if (e.key === "Escape") {
-			e.preventDefault();
-			palette.back();
 		} else if (
 			e.key === "Backspace" &&
 			palette.query === "" &&
@@ -74,6 +72,11 @@
 			e.preventDefault();
 			palette.back();
 		}
+	}
+
+	function handleCancel(e: Event) {
+		e.preventDefault();
+		palette.back();
 	}
 
 	async function executeCommand(cmd: Command) {
@@ -85,8 +88,8 @@
 		}
 	}
 
-	function handleBackdropClick(e: MouseEvent) {
-		if (e.target === e.currentTarget) {
+	function handleDialogClick(e: MouseEvent) {
+		if (e.target === dialogEl) {
 			palette.close();
 		}
 	}
@@ -100,10 +103,14 @@
 	}
 </script>
 
-{#if palette.open}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="backdrop" onclick={handleBackdropClick} onkeydown={() => {}}>
-		<div class="palette" class:palette-wide={isThemePanel} role="dialog" aria-label="Command palette">
+<dialog
+	bind:this={dialogEl}
+	class="palette"
+	class:palette-wide={isThemePanel}
+	aria-label="Command palette"
+	oncancel={handleCancel}
+	onclick={handleDialogClick}
+>
 			{#if palette.depth > 1 && palette.currentLevel}
 				<div class="breadcrumb">
 					<button class="breadcrumb-back" onclick={() => palette.back()}>
@@ -173,26 +180,13 @@
 					</div>
 				{/if}
 			</div>
-		</div>
-	</div>
-{/if}
+	</dialog>
 
 <style>
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 3000;
-		background: rgba(0, 0, 0, 0.4);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
-		display: flex;
-		justify-content: center;
-		padding-top: 20vh;
-	}
-
-	.palette {
+	dialog.palette {
+		padding: 0;
 		width: 520px;
-		max-height: 480px;
+		max-height: min(480px, 60vh);
 		border-radius: 12px;
 		background: rgba(30, 30, 30, 0.95);
 		border: 1px solid rgba(255, 255, 255, 0.1);
@@ -202,7 +196,6 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		align-self: flex-start;
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
 		font-size: 13px;
 		color: #e0e0e0;
@@ -211,6 +204,14 @@
 		font-weight: 400;
 		letter-spacing: normal;
 		text-transform: none;
+		margin-top: 20vh;
+		margin-bottom: auto;
+	}
+
+	dialog.palette::backdrop {
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
 	}
 
 	.breadcrumb {

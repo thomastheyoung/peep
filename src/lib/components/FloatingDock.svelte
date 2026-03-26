@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { getToc } from '$lib/toc.svelte';
+	import { toc } from '$lib/toc.svelte';
 
 	interface Props {
 		scrollContainer: HTMLElement | undefined;
 	}
 
 	let { scrollContainer }: Props = $props();
-
-	const toc = getToc();
 
 	let tocOpen = $state(false);
 	let dockEl: HTMLElement | undefined = $state();

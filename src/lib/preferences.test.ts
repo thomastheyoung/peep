@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("./themes/theme.svelte", () => {
 	let id = "github-dark";
 	return {
-		getThemeState: () => ({
+		themeState: {
 			get id() {
 				return id;
 			},
@@ -26,20 +26,21 @@ vi.mock("./themes/theme.svelte", () => {
 			async init() {
 				id = "github-dark";
 			},
-		}),
+		},
 	};
 });
 
-import { getPreferences, type SettingDef, type RangeSetting, type ChoiceSetting } from "./preferences.svelte";
+import { preferences, type SettingDef, type RangeSetting, type ChoiceSetting } from "./preferences.svelte";
 
 describe("preferences", () => {
-	let prefs: ReturnType<typeof getPreferences>;
+	const prefs = preferences;
 
 	beforeEach(() => {
 		localStorage.clear();
-		prefs = getPreferences();
 		// Reset singleton state since preferences uses module-level $state
 		prefs.resetZoom();
+		prefs.closePanel();
+		prefs.setActiveSection("appearance");
 	});
 
 	describe("settings registry", () => {
@@ -221,28 +222,25 @@ describe("preferences", () => {
 				}),
 			);
 
-			const fresh = getPreferences();
-			await fresh.init();
+			await prefs.init();
 
-			expect(fresh.zoomLevel).toBe(1.5);
-			expect(fresh.contentWidthCss).toBe("1200px"); // wide
-			expect(fresh.fontWeightCss).toBe("600");
-			expect(fresh.letterSpacingCss).toBe("0.02em");
-			expect(fresh.lineHeightCss).toBe("2");
+			expect(prefs.zoomLevel).toBe(1.5);
+			expect(prefs.contentWidthCss).toBe("1200px"); // wide
+			expect(prefs.fontWeightCss).toBe("600");
+			expect(prefs.letterSpacingCss).toBe("0.02em");
+			expect(prefs.lineHeightCss).toBe("2");
 		});
 
 		it("init works with empty localStorage", async () => {
-			const fresh = getPreferences();
-			await fresh.init();
-			expect(fresh.zoomLevel).toBe(1);
+			await prefs.init();
+			expect(prefs.zoomLevel).toBe(1);
 		});
 
 		it("init handles corrupted localStorage gracefully", async () => {
 			localStorage.setItem("md-preferences", "not json");
-			const fresh = getPreferences();
-			await fresh.init();
+			await prefs.init();
 			// Should not throw, defaults apply
-			expect(fresh.zoomLevel).toBe(1);
+			expect(prefs.zoomLevel).toBe(1);
 		});
 	});
 });

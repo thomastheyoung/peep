@@ -1,10 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { renderMarkdown, isLatestRender, clearGeneration } from "./markdown";
-import { getTabs } from "./tabs.svelte";
+import { tabs } from "./tabs.svelte";
 import type { FileContent } from "./types";
-
-const tabs = getTabs();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function clearDebounceTimer(path: string) {

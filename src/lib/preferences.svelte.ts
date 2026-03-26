@@ -1,4 +1,4 @@
-import { getThemeState } from "./themes/theme.svelte";
+import { themeState } from "./themes/theme.svelte";
 import { themes, type ThemeId } from "./themes/registry";
 
 export type ContentWidth = "auto" | "wide" | "full";
@@ -145,201 +145,218 @@ function allStored(themeId: string): StoredPreferences {
 // Public API
 // ---------------------------------------------------------------------------
 
-export function getPreferences() {
-	const themeState = getThemeState();
-
-	// Setter helpers — shared by direct API and settings registry
-	function setContentWidthValue(value: ContentWidth) {
-		contentWidth = value;
-		saveStored(allStored(themeState.id));
-	}
-
-	function setFontWeightValue(value: number) {
-		fontWeight = Math.max(FONT_WEIGHT_MIN, Math.min(FONT_WEIGHT_MAX, value));
-		saveStored(allStored(themeState.id));
-	}
-
-	function setLetterSpacingValue(value: number) {
-		letterSpacing = Math.max(LETTER_SPACING_MIN, Math.min(LETTER_SPACING_MAX, Math.round(value * 100) / 100));
-		saveStored(allStored(themeState.id));
-	}
-
-	function setLineHeightValue(value: number) {
-		lineHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, Math.round(value * 10) / 10));
-		saveStored(allStored(themeState.id));
-	}
-
-	function setZoomValue(value: number) {
-		zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 10) / 10));
-		saveStored(allStored(themeState.id));
-	}
-
-	async function setThemeValue(id: ThemeId) {
-		await themeState.setTheme(id);
-		saveStored(allStored(id));
-	}
-
-	const settings: SettingDef[] = $derived([
-		{
-			type: "choice",
-			id: "theme",
-			label: "Theme",
-			section: "appearance",
-			keywords: ["color", "dark", "light", "appearance"],
-			options: themeState.all.map((t) => ({
-				value: t.id,
-				label: t.name,
-				swatches: t.colors,
-			})),
-			value: themeState.id,
-			select: setThemeValue,
-		} satisfies ChoiceSetting<ThemeId> as SettingDef,
-		{
-			type: "choice",
-			id: "content-width",
-			label: "Content width",
-			section: "layout",
-			keywords: ["layout", "narrow", "wide", "full"],
-			options: [
-				{ value: "auto", label: "Auto", description: "Optimized for reading (~80 chars)" },
-				{ value: "wide", label: "Wide", description: "More room for tables and code" },
-				{ value: "full", label: "Full", description: "Use the entire window width" },
-			],
-			value: contentWidth,
-			select: setContentWidthValue,
-		} satisfies ChoiceSetting<ContentWidth> as SettingDef,
-		{
-			type: "range",
-			id: "zoom",
-			label: "Zoom",
-			section: "layout",
-			keywords: ["magnify", "bigger", "smaller", "scale"],
-			min: ZOOM_MIN,
-			max: ZOOM_MAX,
-			step: ZOOM_STEP,
-			value: zoomLevel,
-			defaultValue: ZOOM_DEFAULT,
-			set: setZoomValue,
-			format: (v) => `${Math.round(v * 100)}%`,
-		},
-		{
-			type: "range",
-			id: "font-weight",
-			label: "Weight",
-			section: "font",
-			keywords: ["bold", "light", "regular", "medium", "semibold"],
-			min: FONT_WEIGHT_MIN,
-			max: FONT_WEIGHT_MAX,
-			step: FONT_WEIGHT_STEP,
-			value: fontWeight,
-			defaultValue: FONT_WEIGHT_DEFAULT,
-			set: setFontWeightValue,
-			format: (v) => FONT_WEIGHT_LABELS[v] ?? String(v),
-		},
-		{
-			type: "range",
-			id: "letter-spacing",
-			label: "Letter spacing",
-			section: "font",
-			keywords: ["tracking", "kerning", "spacing"],
-			min: LETTER_SPACING_MIN,
-			max: LETTER_SPACING_MAX,
-			step: LETTER_SPACING_STEP,
-			value: letterSpacing,
-			defaultValue: LETTER_SPACING_DEFAULT,
-			set: setLetterSpacingValue,
-			format: formatLetterSpacing,
-		},
-		{
-			type: "range",
-			id: "line-height",
-			label: "Line height",
-			section: "font",
-			keywords: ["leading", "spacing", "vertical"],
-			min: LINE_HEIGHT_MIN,
-			max: LINE_HEIGHT_MAX,
-			step: LINE_HEIGHT_STEP,
-			value: lineHeight,
-			defaultValue: LINE_HEIGHT_DEFAULT,
-			set: setLineHeightValue,
-			format: (v) => v.toFixed(1),
-		},
-	]);
-
-	return {
-		// CSS value getters — consumed by +page.svelte for inline styles
-		get contentWidthCss() {
-			return contentWidthValues[contentWidth];
-		},
-		get fontWeightCss() {
-			return String(fontWeight);
-		},
-		get letterSpacingCss() {
-			return `${letterSpacing}em`;
-		},
-		get lineHeightCss() {
-			return String(lineHeight);
-		},
-		get zoomLevel() {
-			return zoomLevel;
-		},
-
-		// Panel state
-		get showPanel() {
-			return showPanel;
-		},
-		get activeSection() {
-			return activeSection;
-		},
-		get theme() {
-			return themeState;
-		},
-
-		get settings() {
-			return settings;
-		},
-
-		// Direct setters — used by zoom event handler, keyboard shortcuts, etc.
-		zoomIn() {
-			setZoomValue(zoomLevel + ZOOM_STEP);
-		},
-		zoomOut() {
-			setZoomValue(zoomLevel - ZOOM_STEP);
-		},
-		resetZoom() {
-			setZoomValue(ZOOM_DEFAULT);
-		},
-
-		async setTheme(id: ThemeId) {
-			await setThemeValue(id);
-		},
-
-		setActiveSection(section: SettingsSection) {
-			activeSection = section;
-		},
-
-		openPanel() {
-			showPanel = true;
-		},
-		closePanel() {
-			showPanel = false;
-		},
-		togglePanel() {
-			showPanel = !showPanel;
-		},
-
-		async init() {
-			const stored = loadStored();
-			if (stored.contentWidth) contentWidth = stored.contentWidth;
-			if (stored.zoomLevel != null) zoomLevel = stored.zoomLevel;
-			if (stored.fontWeight != null) fontWeight = stored.fontWeight;
-			if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
-			if (stored.lineHeight != null) lineHeight = stored.lineHeight;
-			if (stored.theme && themes.some((t) => t.id === stored.theme)) {
-				await themeState.setTheme(stored.theme as ThemeId);
-			} else {
-				await themeState.init();
-			}
-		},
-	};
+// Setter helpers — shared by direct API and settings registry
+function setContentWidthValue(value: ContentWidth) {
+	contentWidth = value;
+	saveStored(allStored(themeState.id));
 }
+
+function setFontWeightValue(value: number) {
+	fontWeight = Math.max(FONT_WEIGHT_MIN, Math.min(FONT_WEIGHT_MAX, value));
+	saveStored(allStored(themeState.id));
+}
+
+function setLetterSpacingValue(value: number) {
+	letterSpacing = Math.max(LETTER_SPACING_MIN, Math.min(LETTER_SPACING_MAX, Math.round(value * 100) / 100));
+	saveStored(allStored(themeState.id));
+}
+
+function setLineHeightValue(value: number) {
+	lineHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, Math.round(value * 10) / 10));
+	saveStored(allStored(themeState.id));
+}
+
+function setZoomValue(value: number) {
+	zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 10) / 10));
+	saveStored(allStored(themeState.id));
+}
+
+async function setThemeValue(id: ThemeId) {
+	await themeState.setTheme(id);
+	saveStored(allStored(id));
+}
+
+const settings: SettingDef[] = $derived([
+	{
+		type: "choice",
+		id: "theme",
+		label: "Theme",
+		section: "appearance",
+		keywords: ["color", "dark", "light", "appearance"],
+		options: themeState.all.map((t) => ({
+			value: t.id,
+			label: t.name,
+			swatches: t.colors,
+		})),
+		value: themeState.id,
+		select: setThemeValue,
+	} satisfies ChoiceSetting<ThemeId> as SettingDef,
+	{
+		type: "choice",
+		id: "content-width",
+		label: "Content width",
+		section: "layout",
+		keywords: ["layout", "narrow", "wide", "full"],
+		options: [
+			{ value: "auto", label: "Auto", description: "Optimized for reading (~80 chars)" },
+			{ value: "wide", label: "Wide", description: "More room for tables and code" },
+			{ value: "full", label: "Full", description: "Use the entire window width" },
+		],
+		value: contentWidth,
+		select: setContentWidthValue,
+	} satisfies ChoiceSetting<ContentWidth> as SettingDef,
+	{
+		type: "range",
+		id: "zoom",
+		label: "Zoom",
+		section: "layout",
+		keywords: ["magnify", "bigger", "smaller", "scale"],
+		min: ZOOM_MIN,
+		max: ZOOM_MAX,
+		step: ZOOM_STEP,
+		value: zoomLevel,
+		defaultValue: ZOOM_DEFAULT,
+		set: setZoomValue,
+		format: (v) => `${Math.round(v * 100)}%`,
+	},
+	{
+		type: "range",
+		id: "font-weight",
+		label: "Weight",
+		section: "font",
+		keywords: ["bold", "light", "regular", "medium", "semibold"],
+		min: FONT_WEIGHT_MIN,
+		max: FONT_WEIGHT_MAX,
+		step: FONT_WEIGHT_STEP,
+		value: fontWeight,
+		defaultValue: FONT_WEIGHT_DEFAULT,
+		set: setFontWeightValue,
+		format: (v) => FONT_WEIGHT_LABELS[v] ?? String(v),
+	},
+	{
+		type: "range",
+		id: "letter-spacing",
+		label: "Letter spacing",
+		section: "font",
+		keywords: ["tracking", "kerning", "spacing"],
+		min: LETTER_SPACING_MIN,
+		max: LETTER_SPACING_MAX,
+		step: LETTER_SPACING_STEP,
+		value: letterSpacing,
+		defaultValue: LETTER_SPACING_DEFAULT,
+		set: setLetterSpacingValue,
+		format: formatLetterSpacing,
+	},
+	{
+		type: "range",
+		id: "line-height",
+		label: "Line height",
+		section: "font",
+		keywords: ["leading", "spacing", "vertical"],
+		min: LINE_HEIGHT_MIN,
+		max: LINE_HEIGHT_MAX,
+		step: LINE_HEIGHT_STEP,
+		value: lineHeight,
+		defaultValue: LINE_HEIGHT_DEFAULT,
+		set: setLineHeightValue,
+		format: (v) => v.toFixed(1),
+	},
+]);
+
+export interface PreferencesAPI {
+	readonly contentWidthCss: string;
+	readonly fontWeightCss: string;
+	readonly letterSpacingCss: string;
+	readonly lineHeightCss: string;
+	readonly zoomLevel: number;
+	readonly showPanel: boolean;
+	readonly activeSection: SettingsSection;
+	readonly theme: import("./themes/theme.svelte").ThemeStateAPI;
+	readonly settings: SettingDef[];
+	zoomIn(): void;
+	zoomOut(): void;
+	resetZoom(): void;
+	setTheme(id: ThemeId): Promise<void>;
+	setActiveSection(section: SettingsSection): void;
+	openPanel(): void;
+	closePanel(): void;
+	togglePanel(): void;
+	init(): Promise<void>;
+}
+
+export const preferences: PreferencesAPI = {
+	// CSS value getters — consumed by +page.svelte for inline styles
+	get contentWidthCss() {
+		return contentWidthValues[contentWidth];
+	},
+	get fontWeightCss() {
+		return String(fontWeight);
+	},
+	get letterSpacingCss() {
+		return `${letterSpacing}em`;
+	},
+	get lineHeightCss() {
+		return String(lineHeight);
+	},
+	get zoomLevel() {
+		return zoomLevel;
+	},
+
+	// Panel state
+	get showPanel() {
+		return showPanel;
+	},
+	get activeSection() {
+		return activeSection;
+	},
+	get theme() {
+		return themeState;
+	},
+
+	get settings() {
+		return settings;
+	},
+
+	// Direct setters — used by zoom event handler, keyboard shortcuts, etc.
+	zoomIn() {
+		setZoomValue(zoomLevel + ZOOM_STEP);
+	},
+	zoomOut() {
+		setZoomValue(zoomLevel - ZOOM_STEP);
+	},
+	resetZoom() {
+		setZoomValue(ZOOM_DEFAULT);
+	},
+
+	async setTheme(id: ThemeId) {
+		await setThemeValue(id);
+	},
+
+	setActiveSection(section: SettingsSection) {
+		activeSection = section;
+	},
+
+	openPanel() {
+		showPanel = true;
+	},
+	closePanel() {
+		showPanel = false;
+	},
+	togglePanel() {
+		showPanel = !showPanel;
+	},
+
+	async init() {
+		const stored = loadStored();
+		if (stored.contentWidth) contentWidth = stored.contentWidth;
+		if (stored.zoomLevel != null) zoomLevel = stored.zoomLevel;
+		if (stored.fontWeight != null) fontWeight = stored.fontWeight;
+		if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
+		if (stored.lineHeight != null) lineHeight = stored.lineHeight;
+		if (stored.theme && themes.some((t) => t.id === stored.theme)) {
+			await themeState.setTheme(stored.theme as ThemeId);
+		} else {
+			await themeState.init();
+		}
+	},
+};

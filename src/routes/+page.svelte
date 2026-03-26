@@ -2,15 +2,15 @@
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
 	import { onMount } from "svelte";
-	import { getTabs } from "$lib/tabs.svelte";
+	import { tabs } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
-	import { getPreferences } from "$lib/preferences.svelte";
-	import { getCommandPalette } from "$lib/command-palette.svelte";
+	import { preferences as prefs } from "$lib/preferences.svelte";
+	import { commandPalette as palette } from "$lib/command-palette.svelte";
 	import { buildCommands } from "$lib/commands";
 	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
 	import { copyCode } from "$lib/copy-code";
 	import { scrollSpy } from "$lib/scroll-spy";
-	import { getToc } from "$lib/toc.svelte";
+	import { toc } from "$lib/toc.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
 	import FloatingDock from "$lib/components/FloatingDock.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
@@ -18,10 +18,6 @@
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
 	import "$lib/themes/base.css";
 
-	const tabs = getTabs();
-	const prefs = getPreferences();
-	const palette = getCommandPalette();
-	const toc = getToc();
 	let contentEl: HTMLElement | undefined = $state();
 
 	function handleKeydown(e: KeyboardEvent) {

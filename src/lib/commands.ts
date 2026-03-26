@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { getPreferences } from "./preferences.svelte";
-import type { SettingDef, RangeSetting } from "./preferences.svelte";
-import type { getTabs } from "./tabs.svelte";
+import type { SettingDef, RangeSetting, PreferencesAPI } from "./preferences.svelte";
+import type { TabsAPI } from "./tabs.svelte";
 
 export interface Command {
 	id: string;
@@ -21,8 +20,8 @@ export interface Command {
 }
 
 interface CommandContext {
-	prefs: ReturnType<typeof getPreferences>;
-	tabs: ReturnType<typeof getTabs>;
+	prefs: PreferencesAPI;
+	tabs: TabsAPI;
 	openFileDialog: () => void;
 	closeTab: (index: number) => void;
 }

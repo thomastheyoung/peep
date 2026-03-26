@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getTabs } from "./tabs.svelte";
+import { tabs } from "./tabs.svelte";
 
 function makeTab(path: string, filename?: string) {
 	return {
@@ -11,10 +11,7 @@ function makeTab(path: string, filename?: string) {
 }
 
 describe("tabs", () => {
-	let tabs: ReturnType<typeof getTabs>;
-
 	beforeEach(() => {
-		tabs = getTabs();
 		// Drain any leftover tabs from previous tests (module-level singleton)
 		while (tabs.items.length > 0) tabs.close(0);
 	});
