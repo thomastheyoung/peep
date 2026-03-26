@@ -136,9 +136,8 @@
 			<article class="markdown-body" use:copyCode>
 				{@html tabs.active.rendered}
 			</article>
-		{:else}
-			<EmptyState onOpenFile={openFileDialog} />
 		{/if}
+		<EmptyState onOpenFile={openFileDialog} hidden={!!tabs.active} />
 	</main>
 	{#if toc.hasHeadings && tabs.active}
 		<FloatingDock scrollContainer={contentEl} />
