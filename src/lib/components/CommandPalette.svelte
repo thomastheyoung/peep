@@ -183,6 +183,10 @@
 	</dialog>
 
 <style>
+	dialog.palette:not([open]) {
+		display: none;
+	}
+
 	dialog.palette {
 		padding: 0;
 		width: 520px;

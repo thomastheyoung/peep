@@ -167,6 +167,10 @@
 	</dialog>
 
 <style>
+	dialog.panel:not([open]) {
+		display: none;
+	}
+
 	dialog.panel {
 		padding: 0;
 		width: 640px;
