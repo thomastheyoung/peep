@@ -44,6 +44,7 @@
 
 @layer base {
 	:root {
+		/* Colors */
 		--chrome-bg: #161b22;
 		--chrome-bg-hover: #282e36;
 		--chrome-border: #30363d;
@@ -51,6 +52,18 @@
 		--chrome-text-active: #c9d1d9;
 		--chrome-surface: #21262d;
 		--chrome-accent: #58a6ff;
+
+		/* Typography */
+		--chrome-font: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+		--chrome-font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+		--chrome-font-size-xs: 11px;
+		--chrome-font-size-sm: 12px;
+		--chrome-font-size-md: 14px;
+		--chrome-font-size-lg: 15px;
+
+		/* Shape */
+		--chrome-radius: 0px;
+		--chrome-border-width: 2px;
 	}
 
 	/* Markdown content — structural defaults */
