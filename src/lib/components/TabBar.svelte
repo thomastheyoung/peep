@@ -83,8 +83,7 @@
 		-webkit-user-select: none;
 		background: var(--chrome-bg);
 		border-bottom: 1px solid var(--chrome-border);
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
-			Arial, sans-serif;
+		font-family: var(--chrome-font);
 	}
 
 	.titlebar-spacer {
@@ -111,10 +110,10 @@
 		align-items: center;
 		gap: 0;
 		padding: 0;
-		font-size: 12px;
+		font-size: var(--chrome-font-size-sm);
 		font-weight: 600;
-		border: 2px solid var(--chrome-border);
-		border-radius: 0;
+		border: var(--chrome-border-width) solid var(--chrome-border);
+		border-radius: var(--chrome-radius);
 		white-space: nowrap;
 		transition:
 			background 0.15s ease,

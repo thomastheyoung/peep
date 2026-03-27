@@ -235,8 +235,8 @@
 
 	.tagline {
 		margin: 6px 0 0;
-		font-family: 'Space Grotesk', sans-serif;
-		font-size: 15px;
+		font-family: var(--chrome-font);
+		font-size: var(--chrome-font-size-lg);
 		font-weight: 400;
 		letter-spacing: 0.04em;
 		color: rgba(15, 23, 42, 0.55);
@@ -315,8 +315,8 @@
 		justify-content: center;
 		min-width: 44px;
 		padding: 5px 10px;
-		font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-		font-size: 13px;
+		font-family: var(--chrome-font);
+		font-size: var(--chrome-font-size-md);
 		font-weight: 500;
 		color: rgba(226, 232, 240, 0.95);
 		background: rgba(255, 255, 255, 0.08);
@@ -326,7 +326,7 @@
 	}
 
 	.help-row span:last-child {
-		font-size: 14px;
+		font-size: var(--chrome-font-size-md);
 		color: rgba(203, 213, 225, 0.9);
 		letter-spacing: 0.01em;
 	}
@@ -343,8 +343,8 @@
 	}
 
 	.cli {
-		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-		font-size: 12.5px !important;
+		font-family: var(--chrome-font-mono);
+		font-size: var(--chrome-font-size-sm) !important;
 		color: rgba(34, 211, 238, 0.8) !important;
 		padding: 5px 10px;
 		background: rgba(255, 255, 255, 0.05);

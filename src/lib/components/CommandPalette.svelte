@@ -191,18 +191,16 @@
 		padding: 0;
 		width: 520px;
 		max-height: min(480px, 60vh);
-		border-radius: 12px;
-		background: rgba(30, 30, 30, 0.95);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		box-shadow:
-			0 24px 80px rgba(0, 0, 0, 0.5),
-			0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+		border-radius: var(--chrome-radius);
+		background: var(--chrome-surface);
+		border: var(--chrome-border-width) solid var(--chrome-border);
+		box-shadow: 6px 6px 0 var(--chrome-border);
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
-		font-size: 13px;
-		color: #e0e0e0;
+		font-family: var(--chrome-font);
+		font-size: var(--chrome-font-size-md);
+		color: var(--chrome-text-active);
 		text-shadow: none;
 		font-style: normal;
 		font-weight: 400;
@@ -213,9 +211,7 @@
 	}
 
 	dialog.palette::backdrop {
-		background: rgba(0, 0, 0, 0.4);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
+		background: rgba(0, 0, 0, 0.5);
 	}
 
 	.breadcrumb {
@@ -223,29 +219,29 @@
 		align-items: center;
 		gap: 6px;
 		padding: 8px 16px 0;
-		font-size: 11px;
-		color: #888;
+		font-size: var(--chrome-font-size-xs);
+		color: var(--chrome-text);
 	}
 
 	.breadcrumb-back {
 		background: none;
 		border: none;
-		color: #888;
+		color: var(--chrome-text);
 		font: inherit;
 		cursor: pointer;
 		padding: 0;
 	}
 
 	.breadcrumb-back:hover {
-		color: #ccc;
+		color: var(--chrome-text-active);
 	}
 
 	.breadcrumb-sep {
-		color: #555;
+		color: var(--chrome-border);
 	}
 
 	.breadcrumb-current {
-		color: #bbb;
+		color: var(--chrome-text-active);
 	}
 
 	.input-row {
@@ -253,12 +249,12 @@
 		align-items: center;
 		gap: 10px;
 		padding: 12px 16px;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		border-bottom: var(--chrome-border-width) solid var(--chrome-border);
 	}
 
 	.search-icon {
 		flex-shrink: 0;
-		color: #666;
+		color: var(--chrome-text);
 	}
 
 	.input {
@@ -266,15 +262,15 @@
 		background: transparent;
 		border: none;
 		outline: none;
-		color: #f0f0f0;
+		color: var(--chrome-text-active);
 		font-family: inherit;
-		font-size: 15px;
+		font-size: var(--chrome-font-size-lg);
 		font-weight: 400;
-		caret-color: #58a6ff;
+		caret-color: var(--chrome-accent);
 	}
 
 	.input::placeholder {
-		color: #555;
+		color: var(--chrome-text);
 	}
 
 	.palette-wide {
@@ -311,7 +307,7 @@
 	}
 
 	.list::-webkit-scrollbar-thumb {
-		background: #333;
+		background: var(--chrome-border);
 		border-radius: 3px;
 	}
 
@@ -320,13 +316,13 @@
 		align-items: center;
 		gap: 10px;
 		padding: 8px 10px;
-		border-radius: 6px;
+		border-radius: var(--chrome-radius);
 		cursor: pointer;
 		transition: none;
 	}
 
 	.item.selected {
-		background: rgba(255, 255, 255, 0.08);
+		background: var(--chrome-bg-hover);
 	}
 
 	.item-label {
@@ -340,24 +336,24 @@
 	}
 
 	.item-detail {
-		font-size: 12px;
-		color: #666;
+		font-size: var(--chrome-font-size-sm);
+		color: var(--chrome-text);
 		white-space: nowrap;
 	}
 
 	.item-shortcut {
-		font-family: "SF Mono", "Fira Code", monospace;
-		font-size: 11px;
-		color: #666;
-		background: rgba(255, 255, 255, 0.06);
+		font-family: var(--chrome-font-mono);
+		font-size: var(--chrome-font-size-xs);
+		color: var(--chrome-text);
+		background: var(--chrome-bg);
 		padding: 2px 6px;
-		border-radius: 4px;
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: var(--chrome-radius);
+		border: 1px solid var(--chrome-border);
 		white-space: nowrap;
 	}
 
 	.item-arrow {
-		color: #555;
+		color: var(--chrome-text);
 		font-size: 16px;
 		font-weight: 300;
 	}
@@ -372,21 +368,20 @@
 		width: 12px;
 		height: 12px;
 		border-radius: 50%;
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		border: 1px solid var(--chrome-border);
 	}
 
 	.empty {
 		padding: 20px;
 		text-align: center;
-		color: #555;
-		font-size: 13px;
+		color: var(--chrome-text);
+		font-size: var(--chrome-font-size-md);
 	}
 
 	/* Theme preview pane */
 	.theme-preview-pane {
 		min-width: 0;
-		border-left: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 0 0 12px 0;
+		border-left: var(--chrome-border-width) solid var(--chrome-border);
 		overflow: hidden;
 	}
 </style>

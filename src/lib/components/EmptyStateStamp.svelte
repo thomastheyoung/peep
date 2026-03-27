@@ -146,8 +146,8 @@
 	}
 
 	.stamp-sub {
-		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-		font-size: 13px;
+		font-family: var(--chrome-font-mono);
+		font-size: var(--chrome-font-size-sm);
 		font-weight: 600;
 		color: var(--chrome-accent, #58a6ff);
 		letter-spacing: 0.2em;
@@ -202,7 +202,7 @@
 		background: var(--chrome-surface, #161b22);
 		border: 2px solid var(--chrome-border, #30363d);
 		box-shadow: 4px 4px 0 var(--chrome-border, #30363d);
-		font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+		font-family: var(--chrome-font);
 	}
 
 	.help-row {
@@ -240,7 +240,7 @@
 		justify-content: center;
 		min-width: 52px;
 		padding: 6px 12px;
-		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+		font-family: var(--chrome-font-mono);
 		font-size: 15px;
 		font-weight: 700;
 		color: var(--chrome-accent, #58a6ff);
@@ -267,7 +267,7 @@
 	}
 
 	.cli {
-		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+		font-family: var(--chrome-font-mono);
 		font-size: 14px !important;
 		color: var(--chrome-accent, #58a6ff) !important;
 		opacity: 0.7;

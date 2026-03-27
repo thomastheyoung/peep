@@ -213,8 +213,8 @@
 
 	/* Labels: hidden by default, shown on strip hover */
 	.toc-label {
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-		font-size: 12px;
+		font-family: var(--chrome-font);
+		font-size: var(--chrome-font-size-sm);
 		line-height: 1;
 		white-space: nowrap;
 		opacity: 0;

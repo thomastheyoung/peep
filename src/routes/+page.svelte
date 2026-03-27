@@ -163,9 +163,7 @@
 		height: 100vh;
 		display: flex;
 		flex-direction: column;
-		font-family:
-			"Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
-			sans-serif;
+		font-family: var(--chrome-font);
 		transition:
 			background-color 0.2s,
 			color 0.2s;
@@ -190,7 +188,7 @@
 	}
 
 	.content::-webkit-scrollbar-thumb {
-		background: #30363d;
+		background: var(--chrome-border);
 		border-radius: 4px;
 	}
 
