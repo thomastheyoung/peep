@@ -1,6 +1,8 @@
 import { Marked } from "marked";
 import markedKatex from "marked-katex-extension";
 import markedFootnote from "marked-footnote";
+import { markedEmoji } from "marked-emoji";
+import { gemoji } from "gemoji";
 import katex from "katex";
 import {
 	createCssVariablesTheme,
@@ -26,6 +28,13 @@ function slugify(text: string): string {
 		.replace(/[\s_]+/g, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
+}
+
+const emojiMap: Record<string, string> = {};
+for (const entry of gemoji) {
+	for (const name of entry.names) {
+		emojiMap[name] = entry.emoji;
+	}
 }
 
 const cssVarsTheme = createCssVariablesTheme();
@@ -78,6 +87,10 @@ function getMd(): Marked {
 	const md = new Marked();
 	md.use(markedKatex({ throwOnError: false, nonStandard: true }));
 	md.use(markedFootnote());
+	md.use(markedEmoji({
+		emojis: emojiMap,
+		renderer: (token) => token.emoji,
+	}));
 	md.use({
 		renderer: {
 			code({ text, lang }) {
