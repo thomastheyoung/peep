@@ -206,6 +206,160 @@
 		border-radius: 0;
 	}
 
+	/* Kbd — key-cap shape */
+	.markdown-body kbd {
+		font-family: "Space Grotesk", sans-serif;
+		font-size: 0.85em;
+		font-weight: 700;
+		padding: 3px 8px 5px;
+		background: #1a1a1a;
+		color: #fffdf0;
+		border: 3px solid #1a1a1a;
+		border-bottom-width: 5px;
+		border-radius: 4px;
+		box-shadow: 0 2px 0 #555;
+		display: inline-block;
+		line-height: 1.2;
+		vertical-align: baseline;
+		min-width: 1.5em;
+		text-align: center;
+	}
+
+	/* Headings with links — inherit heading style */
+	.markdown-body h1 a,
+	.markdown-body h2 a,
+	.markdown-body h3 a,
+	.markdown-body h4 a,
+	.markdown-body h5 a,
+	.markdown-body h6 a {
+		color: inherit;
+		text-decoration-color: #ff5722;
+	}
+
+	.markdown-body h1 a:hover,
+	.markdown-body h2 a:hover,
+	.markdown-body h3 a:hover,
+	.markdown-body h4 a:hover,
+	.markdown-body h5 a:hover,
+	.markdown-body h6 a:hover {
+		color: #ff5722;
+		background: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	/* Task list — no bullets, brutalist checkmarks */
+	.markdown-body ul:has(input[type="checkbox"]) {
+		list-style: none;
+		padding-left: 0;
+	}
+
+	.markdown-body ul:has(input[type="checkbox"]) li {
+		position: relative;
+		padding-left: 2em;
+	}
+
+	.markdown-body input[type="checkbox"] {
+		appearance: none;
+		-webkit-appearance: none;
+		width: 1.3em;
+		height: 1.3em;
+		border: 3px solid #1a1a1a;
+		border-radius: 0;
+		background: #fffdf0;
+		position: absolute;
+		left: 0;
+		top: 0.15em;
+		cursor: pointer;
+	}
+
+	.markdown-body input[type="checkbox"]:checked {
+		background: #ff5722;
+		border-color: #1a1a1a;
+	}
+
+	.markdown-body input[type="checkbox"]:checked::after {
+		content: "✕";
+		color: #fffdf0;
+		font-size: 1em;
+		font-weight: 900;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		line-height: 1;
+	}
+
+	/* Footnotes */
+	.markdown-body section[data-footnotes] {
+		margin-top: 3em;
+		padding-top: 1.5em;
+		border-top: 4px solid #1a1a1a;
+		font-size: 0.9em;
+	}
+
+	.markdown-body section[data-footnotes] > .sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+	}
+
+	.markdown-body section[data-footnotes] ol {
+		padding-left: 1.5em;
+	}
+
+	.markdown-body section[data-footnotes] li {
+		margin-bottom: 0.5em;
+	}
+
+	.markdown-body a[data-footnote-ref] {
+		font-weight: 700;
+		color: #ff5722;
+		text-decoration: none;
+		font-size: 0.8em;
+		border: 2px solid #ff5722;
+		padding: 0 4px;
+		margin-left: 2px;
+	}
+
+	.markdown-body a[data-footnote-ref]:hover {
+		background: #ff5722;
+		color: #fffdf0;
+		padding: 0 4px;
+		margin: 0 0 0 2px;
+	}
+
+	.markdown-body a[data-footnote-backref] {
+		color: #ff5722;
+		text-decoration: none;
+		font-weight: 700;
+	}
+
+	/* Definition lists */
+	.markdown-body dt {
+		font-family: "Space Grotesk", sans-serif;
+		font-weight: 700;
+		font-size: 1.05em;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: #ff5722;
+		margin-top: 1.2em;
+		margin-bottom: 0.3em;
+	}
+
+	.markdown-body dt:first-child {
+		margin-top: 0;
+	}
+
+	.markdown-body dd {
+		margin-left: 0;
+		padding-left: 1.5em;
+		border-left: 2px solid #ddd;
+		margin-bottom: 0.5em;
+	}
+
 	.markdown-body ::selection {
 		background: #ff5722;
 		color: #fffdf0;

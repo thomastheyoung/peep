@@ -1,5 +1,6 @@
 import { Marked } from "marked";
 import markedKatex from "marked-katex-extension";
+import markedFootnote from "marked-footnote";
 import katex from "katex";
 import {
 	createCssVariablesTheme,
@@ -76,9 +77,13 @@ function getMd(): Marked {
 	if (mdInstance) return mdInstance;
 	const md = new Marked();
 	md.use(markedKatex({ throwOnError: false, nonStandard: true }));
+	md.use(markedFootnote());
 	md.use({
 		renderer: {
 			code({ text, lang }) {
+				if (lang === "mermaid") {
+					return `<div class="mermaid-diagram">${escapeHtml(text)}</div>`;
+				}
 				if (lang === "math" || lang === "katex") {
 					try {
 						return `<div class="katex-block">${katex.renderToString(text, { displayMode: true, throwOnError: false })}</div>`;
@@ -99,15 +104,16 @@ function getMd(): Marked {
 				}
 				return `<pre><code class="language-${escapeHtml(language)}">${escapeHtml(text)}</code></pre>`;
 			},
-			heading({ text, depth }) {
-				const plainText = stripHtmlTags(text);
+			heading({ tokens, depth }) {
+				const rendered = this.parser.parseInline(tokens);
+				const plainText = stripHtmlTags(rendered);
 				let slug = slugify(plainText) || `heading-${depth}`;
 				const count = currentSlugCounts.get(slug) ?? 0;
 				currentSlugCounts.set(slug, count + 1);
 				if (count > 0) slug = `${slug}-${count}`;
 
 				currentHeadings.push({ text: plainText, level: depth, id: slug });
-				return `<h${depth} id="${escapeHtml(slug)}">${text}</h${depth}>`;
+				return `<h${depth} id="${escapeHtml(slug)}">${rendered}</h${depth}>`;
 			},
 		},
 	});

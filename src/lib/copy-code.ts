@@ -42,6 +42,7 @@ function createCopyButton(pre: HTMLPreElement): HTMLButtonElement {
 function attachButtons(node: HTMLElement) {
 	const pres = node.querySelectorAll("pre");
 	for (const pre of pres) {
+		if (pre.closest(".mermaid-diagram")) continue;
 		if (pre.querySelector(".copy-code-btn")) continue;
 		pre.style.position = "relative";
 		pre.appendChild(createCopyButton(pre));

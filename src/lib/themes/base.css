@@ -341,6 +341,46 @@
 		}
 	}
 
+	/* Mermaid diagrams */
+	.markdown-body .mermaid-diagram {
+		margin: 0 0 16px;
+		text-align: center;
+	}
+
+	.markdown-body .mermaid-diagram svg {
+		max-width: 100%;
+		height: auto;
+	}
+
+	.markdown-body .mermaid-diagram.mermaid-error .mermaid-error-message {
+		border-left: 3px solid #ef4444;
+		padding: 12px 16px;
+		opacity: 0.7;
+	}
+
+	/* Footnotes */
+	.markdown-body section[data-footnotes] {
+		margin-top: 2em;
+		padding-top: 1em;
+		border-top: 1px solid;
+		font-size: 0.875em;
+	}
+
+	.markdown-body section[data-footnotes] > .sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+	}
+
+	.markdown-body a[data-footnote-ref] {
+		text-decoration: none;
+		font-size: 0.8em;
+		vertical-align: super;
+		line-height: 0;
+	}
+
 	/* Selection */
 	.markdown-body ::selection {
 		background: color-mix(in oklab, var(--md-accent, #58a6ff) 30%, transparent);

@@ -8,6 +8,7 @@
 	import { buildCommands } from "$lib/commands";
 	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
 	import { copyCode } from "$lib/copy-code";
+	import { renderMermaid, rerenderMermaid } from "$lib/mermaid";
 	import { scrollSpy } from "$lib/scroll-spy";
 	import { toc } from "$lib/toc";
 	import TabBar from "$lib/components/TabBar.svelte";
@@ -19,6 +20,13 @@
 	import "katex/dist/katex.min.css";
 
 	let contentEl: HTMLElement | undefined = $state();
+	let articleEl: HTMLElement | undefined = $state();
+
+	// Re-render mermaid diagrams when the theme CSS changes (dark ↔ light)
+	$effect(() => {
+		prefs.theme.css; // track theme changes
+		if (articleEl) rerenderMermaid(articleEl);
+	});
 
 	function handleKeydown(e: KeyboardEvent) {
 		const mod = e.metaKey || e.ctrlKey;
@@ -133,7 +141,7 @@
 		use:scrollSpy={(id) => toc.setActiveId(id)}
 	>
 		{#if tabs.active}
-			<article class="markdown-body" use:copyCode>
+			<article class="markdown-body" use:copyCode use:renderMermaid bind:this={articleEl}>
 				{@html tabs.active.rendered}
 			</article>
 		{/if}
