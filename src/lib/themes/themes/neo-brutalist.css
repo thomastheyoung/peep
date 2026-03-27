@@ -100,12 +100,12 @@
 
 	.markdown-body code {
 		font-family: "Space Mono", "Courier New", monospace;
-		background: #ff5722;
-		color: #1a1a1a;
-		border: 2px solid #1a1a1a;
+		background: #ffe0cc;
+		color: #d84315;
+		border: none;
 		border-radius: 0;
 		padding: 2px 6px;
-		font-weight: 500;
+		font-weight: 700;
 	}
 
 	.markdown-body pre {
