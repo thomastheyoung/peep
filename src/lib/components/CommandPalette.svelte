@@ -18,14 +18,12 @@
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLDivElement | undefined = $state();
 
-	const filtered = $derived(palette.filtered);
-
-	const isThemePanel = $derived(filtered.length > 0 && filtered[0]?.swatches != null);
+	const isThemePanel = $derived(palette.filtered.length > 0 && palette.filtered[0]?.swatches != null);
 
 	// Extract theme ID from selected command (format: "theme:<id>")
 	const previewThemeId = $derived.by(() => {
 		if (!isThemePanel) return undefined;
-		const cmd = filtered[palette.selectedIndex];
+		const cmd = palette.filtered[palette.selectedIndex];
 		if (!cmd) return undefined;
 		const parts = cmd.id.split(":");
 		return parts.length === 2 ? parts[1] : undefined;
@@ -34,12 +32,15 @@
 	$effect(() => {
 		if (palette.open) {
 			dialogEl?.showModal();
-			// Focus input when palette opens or drills in/out
-			palette.depth; // track depth changes
-			requestAnimationFrame(() => inputEl?.focus());
 		} else {
 			dialogEl?.close();
 		}
+	});
+
+	$effect(() => {
+		if (!palette.open) return;
+		palette.depth; // track depth changes for refocus
+		requestAnimationFrame(() => inputEl?.focus());
 	});
 
 	$effect(() => {
@@ -55,14 +56,14 @@
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
 			palette.setSelectedIndex(
-				Math.min(palette.selectedIndex + 1, filtered.length - 1),
+				Math.min(palette.selectedIndex + 1, palette.filtered.length - 1),
 			);
 		} else if (e.key === "ArrowUp") {
 			e.preventDefault();
 			palette.setSelectedIndex(Math.max(palette.selectedIndex - 1, 0));
 		} else if (e.key === "Enter") {
 			e.preventDefault();
-			const cmd = filtered[palette.selectedIndex];
+			const cmd = palette.filtered[palette.selectedIndex];
 			if (cmd) executeCommand(cmd);
 		} else if (
 			e.key === "Backspace" &&
@@ -80,9 +81,9 @@
 	}
 
 	async function executeCommand(cmd: Command) {
-		if (cmd.children) {
+		if (cmd.kind === 'parent') {
 			palette.drillIn(cmd.children(), cmd.label);
-		} else if (cmd.action) {
+		} else {
 			palette.close();
 			await cmd.action();
 		}
@@ -138,7 +139,7 @@
 
 			<div class="palette-body">
 				<div class="list" role="listbox" bind:this={listEl}>
-					{#each filtered as cmd, i (cmd.id)}
+					{#each palette.filtered as cmd, i (cmd.id)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<div
 							class="item"
@@ -165,7 +166,7 @@
 							{#if cmd.shortcut}
 								<kbd class="item-shortcut">{cmd.shortcut}</kbd>
 							{/if}
-							{#if cmd.children}
+							{#if cmd.kind === 'parent'}
 								<span class="item-arrow">›</span>
 							{/if}
 						</div>

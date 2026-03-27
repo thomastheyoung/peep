@@ -7,6 +7,7 @@ function makeTab(path: string, filename?: string) {
 		filename: filename ?? path.split("/").pop()!,
 		content: `# ${path}`,
 		rendered: `<h1>${path}</h1>`,
+		headings: [],
 	};
 }
 

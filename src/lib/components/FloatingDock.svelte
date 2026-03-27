@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toc } from '$lib/toc.svelte';
+	import { toc } from '$lib/toc';
 
 	interface Props {
 		scrollContainer: HTMLElement | undefined;

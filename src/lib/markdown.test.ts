@@ -4,7 +4,7 @@ import { renderMarkdown, isLatestRender } from "./markdown";
 describe("renderMarkdown", () => {
 	it("renders basic markdown to HTML", async () => {
 		const { html } = await renderMarkdown("# Hello\n\nWorld");
-		expect(html).toContain("<h1>");
+		expect(html).toContain("<h1");
 		expect(html).toContain("Hello");
 		expect(html).toContain("<p>World</p>");
 	});

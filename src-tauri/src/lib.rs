@@ -68,6 +68,35 @@ fn is_markdown_file(path: &PathBuf) -> bool {
         .is_some_and(|e| ALLOWED_EXTENSIONS.contains(&e))
 }
 
+/// Resolve CLI arguments to canonical markdown file paths.
+/// Accepts file paths (kept if markdown) and directory paths (all markdown files inside).
+/// Relative paths are resolved against `cwd`.
+fn resolve_markdown_paths(args: &[String], cwd: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    for arg in args {
+        let path = if PathBuf::from(arg).is_absolute() {
+            PathBuf::from(arg)
+        } else {
+            PathBuf::from(cwd).join(arg)
+        };
+        if let Ok(canonical) = fs::canonicalize(&path) {
+            if canonical.is_file() && is_markdown_file(&canonical) {
+                paths.push(canonical.to_string_lossy().into_owned());
+            } else if canonical.is_dir() {
+                if let Ok(entries) = fs::read_dir(&canonical) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if is_markdown_file(&p) {
+                            paths.push(p.to_string_lossy().into_owned());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    paths
+}
+
 struct AppState {
     watched_files: Mutex<HashSet<PathBuf>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
@@ -235,30 +264,11 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             // args[0] is the binary path; real file args start at [1]
-            let file_args: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            let cwd = _cwd;
-            for arg in file_args {
-                let path = if PathBuf::from(arg).is_absolute() {
-                    PathBuf::from(arg)
-                } else {
-                    PathBuf::from(&cwd).join(arg)
-                };
-                if let Ok(canonical) = fs::canonicalize(&path) {
-                    if canonical.is_file() && is_markdown_file(&canonical) {
-                        let _ = app.emit("open-file", canonical.to_string_lossy().into_owned());
-                    } else if canonical.is_dir() {
-                        if let Ok(entries) = fs::read_dir(&canonical) {
-                            for entry in entries.flatten() {
-                                let p = entry.path();
-                                if is_markdown_file(&p) {
-                                    let _ = app.emit("open-file", p.to_string_lossy().into_owned());
-                                }
-                            }
-                        }
-                    }
-                }
+            let file_args: Vec<String> = args.iter().skip(1).cloned().collect();
+            for path in resolve_markdown_paths(&file_args, &cwd) {
+                let _ = app.emit("open-file", path);
             }
             // Focus the existing window
             if let Some(window) = app.get_webview_window("main") {
@@ -338,7 +348,6 @@ pub fn run() {
 
             app.on_menu_event(|app, event| {
                 let id = event.id();
-                println!("[menu] event: {:?}", id);
                 match id.as_ref() {
                     "zoom_in" => {
                         let _ = app.emit("zoom", "in");
@@ -355,32 +364,16 @@ pub fn run() {
 
             let args: Vec<String> = std::env::args().skip(1).collect();
             if !args.is_empty() {
+                let cwd = std::env::current_dir()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
                 let state = app.state::<AppState>();
                 let mut initial = state
                     .initial_files
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                for arg in &args {
-                    let path = if PathBuf::from(arg).is_absolute() {
-                        PathBuf::from(arg)
-                    } else {
-                        std::env::current_dir().unwrap_or_default().join(arg)
-                    };
-                    if let Ok(canonical) = fs::canonicalize(&path) {
-                        if canonical.is_file() && is_markdown_file(&canonical) {
-                            initial.push(canonical.to_string_lossy().into_owned());
-                        } else if canonical.is_dir() {
-                            if let Ok(entries) = fs::read_dir(&canonical) {
-                                for entry in entries.flatten() {
-                                    let p = entry.path();
-                                    if is_markdown_file(&p) {
-                                        initial.push(p.to_string_lossy().into_owned());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                initial.extend(resolve_markdown_paths(&args, &cwd));
             }
             Ok(())
         })
@@ -392,11 +385,7 @@ pub fn run() {
                     if url.scheme() == "file" {
                         if let Ok(path) = url.to_file_path() {
                             if path.is_file() && is_markdown_file(&path) {
-                                let path_str = path.to_string_lossy().into_owned();
-                                let handle = app.clone();
-                                std::thread::spawn(move || {
-                                    let _ = handle.emit_to("main", "open-file", &path_str);
-                                });
+                                let _ = app.emit_to("main", "open-file", path.to_string_lossy().into_owned());
                             }
                         }
                     }

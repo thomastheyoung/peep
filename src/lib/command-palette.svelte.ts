@@ -5,7 +5,7 @@ interface Level {
 	title: string;
 }
 
-export interface CommandPaletteAPI {
+interface CommandPaletteAPI {
 	readonly open: boolean;
 	readonly query: string;
 	readonly selectedIndex: number;
@@ -73,7 +73,6 @@ export const commandPalette: CommandPaletteAPI = {
 	back() {
 		if (stack.length > 1) {
 			stack.pop();
-			stack = [...stack];
 			query = "";
 			selectedIndex = 0;
 		} else {

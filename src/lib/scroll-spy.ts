@@ -9,8 +9,9 @@ export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
 ) => {
 	let ticking = false;
 	let currentId: string | null = null;
+	let callback = onActiveChange;
 
-	function update() {
+	function check() {
 		const article = node.querySelector("article.markdown-body");
 		if (!article) return;
 
@@ -33,7 +34,7 @@ export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
 
 		if (active !== currentId) {
 			currentId = active;
-			onActiveChange(active);
+			callback(active);
 		}
 	}
 
@@ -41,7 +42,7 @@ export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
 		if (!ticking) {
 			ticking = true;
 			requestAnimationFrame(() => {
-				update();
+				check();
 				ticking = false;
 			});
 		}
@@ -50,13 +51,16 @@ export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
 	node.addEventListener("scroll", onScroll, { passive: true });
 
 	const mo = new MutationObserver(() => {
-		requestAnimationFrame(update);
+		requestAnimationFrame(check);
 	});
 	mo.observe(node, { childList: true, subtree: true });
 
-	requestAnimationFrame(update);
+	requestAnimationFrame(check);
 
 	return {
+		update(newCallback) {
+			callback = newCallback;
+		},
 		destroy() {
 			node.removeEventListener("scroll", onScroll);
 			mo.disconnect();

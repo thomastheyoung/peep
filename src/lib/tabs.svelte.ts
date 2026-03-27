@@ -1,6 +1,6 @@
 import type { TocHeading } from "./markdown";
 
-export interface Tab {
+interface Tab {
 	path: string;
 	filename: string;
 	content: string;
@@ -10,7 +10,7 @@ export interface Tab {
 	color: string;
 }
 
-const TAB_COLORS = ['#fde047', '#f472b6', '#67e8f9', '#a78bfa', '#86efac', '#fdba74', '#f87171', '#22d3ee'];
+const TAB_COLORS = ['#fde047', '#f472b6', '#67e8f9', '#a78bfa', '#86efac', '#fdba74', '#f87171', '#22d3ee'] as const;
 let colorIndex = 0;
 
 function nextColor(): string {

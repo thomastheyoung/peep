@@ -18,7 +18,8 @@ vi.mock("./registry", () => ({
 	],
 }));
 
-import { themeState } from "./theme.svelte";
+import { themeState, isThemeId } from "./theme.svelte";
+import { themes } from "./registry";
 
 describe("theme state", () => {
 	const theme = themeState;
@@ -27,12 +28,6 @@ describe("theme state", () => {
 		localStorage.clear();
 		// Reset singleton to first theme (mock-dark)
 		await theme.setTheme("mock-dark");
-		localStorage.clear(); // clear the setTheme persistence
-	});
-
-	it("defaults to mock-dark (first theme, matching github-dark behavior)", () => {
-		// Before init, the default activeId is "github-dark" but our mock doesn't have it
-		// After init it should fall back to the first theme
 	});
 
 	it("lists all themes", () => {
@@ -46,9 +41,9 @@ describe("theme state", () => {
 			expect(theme.css).toBe("body { color: black; }");
 		});
 
-		it("persists to localStorage", async () => {
+		it("does not persist to localStorage", async () => {
 			await theme.setTheme("mock-dark");
-			expect(localStorage.getItem("md-theme")).toBe("mock-dark");
+			expect(localStorage.getItem("md-theme")).toBeNull();
 		});
 
 		it("ignores unknown theme IDs", async () => {
@@ -57,29 +52,30 @@ describe("theme state", () => {
 			expect(theme.id).toBe("mock-dark"); // unchanged
 		});
 
-		it("meta reflects the active theme", async () => {
+		it("active theme can be looked up in the registry", async () => {
 			await theme.setTheme("mock-light");
-			expect(theme.meta?.name).toBe("Mock Light");
-			expect(theme.meta?.colors.bg).toBe("#fff");
+			const meta = themes.find((t) => t.id === theme.id);
+			expect(meta?.name).toBe("Mock Light");
+			expect(meta?.colors.bg).toBe("#fff");
 		});
 	});
 
 	describe("init", () => {
-		it("restores saved theme from localStorage", async () => {
-			localStorage.setItem("md-theme", "mock-light");
-			await theme.init();
-			expect(theme.id).toBe("mock-light");
-		});
-
-		it("falls back to first theme when saved theme is invalid", async () => {
-			localStorage.setItem("md-theme", "nonexistent");
+		it("loads the default theme", async () => {
 			await theme.init();
 			expect(theme.id).toBe("mock-dark");
 		});
+	});
 
-		it("falls back to first theme when no saved theme", async () => {
-			await theme.init();
-			expect(theme.id).toBe("mock-dark");
+	describe("isThemeId", () => {
+		it("returns true for valid theme IDs", () => {
+			expect(isThemeId("mock-dark")).toBe(true);
+			expect(isThemeId("mock-light")).toBe(true);
+		});
+
+		it("returns false for invalid theme IDs", () => {
+			expect(isThemeId("nonexistent")).toBe(false);
+			expect(isThemeId("")).toBe(false);
 		});
 	});
 });

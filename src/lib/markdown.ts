@@ -63,23 +63,17 @@ function getHighlighter(): Promise<Highlighter> {
 
 const renderGenerations = new Map<string, number>();
 
-export async function renderMarkdown(
-	source: string,
-	path?: string,
-): Promise<{ html: string; generation: number; headings: TocHeading[] }> {
-	const key = path ?? "";
-	const generation = (renderGenerations.get(key) ?? 0) + 1;
-	renderGenerations.set(key, generation);
+// Per-render heading state — reset before each render call
+let currentHeadings: TocHeading[] = [];
+let currentSlugCounts = new Map<string, number>();
 
-	const hl = await getHighlighter();
+// Module-level Marked singleton — configured once, reused across renders.
+// The heading renderer reads from `currentHeadings`/`currentSlugCounts` which
+// are reset before each call to `renderMarkdown()`.
+let mdInstance: Marked | null = null;
 
-	if (!loadedLangsSet) {
-		loadedLangsSet = new Set(hl.getLoadedLanguages() as string[]);
-	}
-
-	const headings: TocHeading[] = [];
-	const slugCounts = new Map<string, number>();
-
+function getMd(): Marked {
+	if (mdInstance) return mdInstance;
 	const md = new Marked();
 	md.use(markedKatex({ throwOnError: false, nonStandard: true }));
 	md.use({
@@ -94,8 +88,8 @@ export async function renderMarkdown(
 				}
 				const language = lang || "text";
 				try {
-					if (loadedLangsSet!.has(language)) {
-						return hl.codeToHtml(text, {
+					if (loadedLangsSet?.has(language)) {
+						return cachedHighlighter!.codeToHtml(text, {
 							lang: language,
 							theme: "css-variables",
 						});
@@ -108,17 +102,41 @@ export async function renderMarkdown(
 			heading({ text, depth }) {
 				const plainText = stripHtmlTags(text);
 				let slug = slugify(plainText) || `heading-${depth}`;
-				const count = slugCounts.get(slug) ?? 0;
-				slugCounts.set(slug, count + 1);
+				const count = currentSlugCounts.get(slug) ?? 0;
+				currentSlugCounts.set(slug, count + 1);
 				if (count > 0) slug = `${slug}-${count}`;
 
-				headings.push({ text: plainText, level: depth, id: slug });
+				currentHeadings.push({ text: plainText, level: depth, id: slug });
 				return `<h${depth} id="${escapeHtml(slug)}">${text}</h${depth}>`;
 			},
 		},
 	});
+	mdInstance = md;
+	return md;
+}
 
+let cachedHighlighter: Highlighter | null = null;
+
+export async function renderMarkdown(
+	source: string,
+	path?: string,
+): Promise<{ html: string; generation: number; headings: TocHeading[] }> {
+	const key = path ?? "";
+	const generation = (renderGenerations.get(key) ?? 0) + 1;
+	renderGenerations.set(key, generation);
+
+	if (!cachedHighlighter) {
+		cachedHighlighter = await getHighlighter();
+		loadedLangsSet = new Set(cachedHighlighter.getLoadedLanguages() as string[]);
+	}
+
+	// Reset per-render heading state
+	currentHeadings = [];
+	currentSlugCounts = new Map<string, number>();
+
+	const md = getMd();
 	const html = await md.parse(source);
+	const headings = currentHeadings;
 	return { html, generation, headings };
 }
 

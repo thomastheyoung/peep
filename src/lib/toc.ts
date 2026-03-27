@@ -1,11 +1,10 @@
 import { tabs } from "./tabs.svelte";
 
-export interface TocAPI {
+interface TocAPI {
 	readonly headings: import("./markdown").TocHeading[];
 	readonly activeId: string | null;
 	readonly hasHeadings: boolean;
 	setActiveId(id: string | null): void;
-	clear(): void;
 }
 
 export const toc: TocAPI = {
@@ -20,8 +19,5 @@ export const toc: TocAPI = {
 	},
 	setActiveId(id: string | null) {
 		tabs.setActiveHeadingId(id);
-	},
-	clear() {
-		tabs.setActiveHeadingId(null);
 	},
 };

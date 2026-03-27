@@ -112,7 +112,7 @@ describe("buildCommands", () => {
 			const cmd = commands.find((c) => c.id === "test-choice")!;
 
 			expect(cmd.label).toBe("Test Choice...");
-			expect(cmd.children).toBeDefined();
+			expect(cmd.kind).toBe("parent");
 			expect(cmd.detail).toBe("Alpha"); // current value label
 		});
 
@@ -120,7 +120,9 @@ describe("buildCommands", () => {
 			const setting = mockChoiceSetting({ value: "b" });
 			const commands = buildCommands(mockContext([setting]));
 			const cmd = commands.find((c) => c.id === "test-choice")!;
-			const children = cmd.children!();
+			expect(cmd.kind).toBe("parent");
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+			const children = cmd.children();
 
 			expect(children.find((c) => c.id === "test-choice:b")!.detail).toBe("✓");
 			expect(children.find((c) => c.id === "test-choice:a")!.detail).toBeUndefined();
@@ -129,8 +131,12 @@ describe("buildCommands", () => {
 		it("child action calls select", () => {
 			const setting = mockChoiceSetting();
 			const commands = buildCommands(mockContext([setting]));
-			const children = commands.find((c) => c.id === "test-choice")!.children!();
-			children[1]!.action!();
+			const cmd = commands.find((c) => c.id === "test-choice")!;
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+			const children = cmd.children();
+			const child = children[1]!;
+			if (child.kind !== "action") throw new Error("expected action");
+			child.action();
 
 			expect(setting.select).toHaveBeenCalledWith("b");
 		});
@@ -143,9 +149,10 @@ describe("buildCommands", () => {
 			const cmd = commands.find((c) => c.id === "zoom")!;
 
 			expect(cmd.label).toBe("Zoom...");
-			expect(cmd.children).toBeDefined();
+			expect(cmd.kind).toBe("parent");
+			if (cmd.kind !== "parent") throw new Error("expected parent");
 
-			const children = cmd.children!();
+			const children = cmd.children();
 			expect(children).toHaveLength(3); // 1, 2, 3
 			expect(children[0]!.label).toBe("100%");
 		});
@@ -166,7 +173,8 @@ describe("buildCommands", () => {
 			const setting = mockRangeSetting({ value: 1, step: 0.1 });
 			const commands = buildCommands(mockContext([setting]));
 			const zoomIn = commands.find((c) => c.id === "zoom-in")!;
-			zoomIn.action!();
+			if (zoomIn.kind !== "action") throw new Error("expected action");
+			zoomIn.action();
 
 			expect(setting.set).toHaveBeenCalledWith(expect.closeTo(1.1, 5));
 		});
@@ -175,7 +183,8 @@ describe("buildCommands", () => {
 			const setting = mockRangeSetting({ value: 2, defaultValue: 1 });
 			const commands = buildCommands(mockContext([setting]));
 			const zoomReset = commands.find((c) => c.id === "zoom-reset")!;
-			zoomReset.action!();
+			if (zoomReset.kind !== "action") throw new Error("expected action");
+			zoomReset.action();
 
 			expect(setting.set).toHaveBeenCalledWith(1);
 		});
@@ -186,7 +195,8 @@ describe("buildCommands", () => {
 			const ctx = mockContext([], 3);
 			const commands = buildCommands(ctx);
 			const closeAll = commands.find((c) => c.id === "close-all")!;
-			closeAll.action!();
+			if (closeAll.kind !== "action") throw new Error("expected action");
+			closeAll.action();
 
 			expect(ctx.closeTab).toHaveBeenCalledTimes(3);
 			// Should close in reverse order
@@ -201,7 +211,8 @@ describe("buildCommands", () => {
 			const ctx = mockContext([], 3);
 			const commands = buildCommands(ctx);
 			const switchTab = commands.find((c) => c.id === "switch-tab")!;
-			const children = switchTab.children!();
+			if (switchTab.kind !== "parent") throw new Error("expected parent");
+			const children = switchTab.children();
 
 			expect(children).toHaveLength(3);
 			expect(children[0]!.detail).toBe("✓"); // activeIndex is 0

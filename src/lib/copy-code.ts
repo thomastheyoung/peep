@@ -23,19 +23,7 @@ function createCopyButton(pre: HTMLPreElement): HTMLButtonElement {
 	btn.addEventListener("click", async () => {
 		const code = pre.querySelector("code");
 		const text = (code ?? pre).textContent ?? "";
-		try {
-			await navigator.clipboard.writeText(text);
-		} catch {
-			// Fallback for older webviews
-			const textarea = document.createElement("textarea");
-			textarea.value = text;
-			textarea.style.position = "fixed";
-			textarea.style.opacity = "0";
-			document.body.appendChild(textarea);
-			textarea.select();
-			document.execCommand("copy");
-			document.body.removeChild(textarea);
-		}
+		await navigator.clipboard.writeText(text).catch(() => {});
 
 		// Safe: CHECK_SVG is a hardcoded constant, not user input
 		btn.innerHTML = CHECK_SVG;

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { SettingDef, RangeSetting, PreferencesAPI } from "./preferences.svelte";
 import type { TabsAPI } from "./tabs.svelte";
 
-export interface Command {
+interface CommandBase {
 	id: string;
 	label: string;
 	/** Additional search terms (not displayed) */
@@ -13,11 +13,19 @@ export interface Command {
 	detail?: string;
 	/** Color swatches for theme items */
 	swatches?: { bg: string; text: string; accent: string };
-	/** If present, selecting this item drills into a sub-list */
-	children?: () => Command[];
-	/** Action to execute. Absent if item has children. */
-	action?: () => void | Promise<void>;
 }
+
+interface ParentCommand extends CommandBase {
+	kind: 'parent';
+	children: () => Command[];
+}
+
+interface ActionCommand extends CommandBase {
+	kind: 'action';
+	action: () => void | Promise<void>;
+}
+
+export type Command = ParentCommand | ActionCommand;
 
 interface CommandContext {
 	prefs: PreferencesAPI;
@@ -28,11 +36,10 @@ interface CommandContext {
 
 /** Generate all discrete steps for a range setting */
 function rangeSteps(s: RangeSetting): number[] {
-	const steps: number[] = [];
-	for (let v = s.min; v <= s.max + s.step / 2; v += s.step) {
-		steps.push(Math.round(v * 1000) / 1000);
-	}
-	return steps;
+	const count = Math.round((s.max - s.min) / s.step);
+	return Array.from({ length: count + 1 }, (_, i) =>
+		Math.round((s.min + i * s.step) * 1000) / 1000
+	);
 }
 
 function commandFromSetting(setting: SettingDef): Command {
@@ -44,12 +51,14 @@ function commandFromSetting(setting: SettingDef): Command {
 				label: `${setting.label}...`,
 				keywords: setting.keywords,
 				detail: current?.label,
+				kind: 'parent',
 				children: () =>
 					setting.options.map((o) => ({
 						id: `${setting.id}:${o.value}`,
 						label: o.label,
 						swatches: o.swatches,
 						detail: setting.value === o.value ? "✓" : undefined,
+						kind: 'action' as const,
 						action: () => setting.select(o.value),
 					})),
 			};
@@ -60,11 +69,13 @@ function commandFromSetting(setting: SettingDef): Command {
 				label: `${setting.label}...`,
 				keywords: setting.keywords,
 				detail: setting.format(setting.value),
+				kind: 'parent',
 				children: () =>
 					rangeSteps(setting).map((v) => ({
 						id: `${setting.id}:${v}`,
 						label: setting.format(v),
 						detail: v === setting.value ? "✓" : undefined,
+						kind: 'action' as const,
 						action: () => setting.set(v),
 					})),
 			};
@@ -92,18 +103,20 @@ export function buildCommands(ctx: CommandContext): Command[] {
 	}
 
 	// Zoom shortcuts as top-level commands (in addition to the drill-in)
-	const zoomSetting = prefs.settings.find((s) => s.id === "zoom") as RangeSetting | undefined;
+	const zoomSetting = prefs.settings.find((s): s is RangeSetting => s.type === "range" && s.id === "zoom");
 	if (zoomSetting) {
 		const zoomDetail = zoomSetting.format(zoomSetting.value);
 		for (const z of ZOOM_SHORTCUTS) {
+			const delta = z.delta;
 			commands.push({
 				id: `zoom-${z.suffix}`,
 				label: z.label,
 				keywords: ["zoom"],
 				shortcut: z.shortcut,
-				detail: z.delta != null ? zoomDetail : undefined,
-				action: z.delta != null
-					? () => zoomSetting.set(zoomSetting.value + z.delta! * zoomSetting.step)
+				detail: delta != null ? zoomDetail : undefined,
+				kind: 'action',
+				action: delta != null
+					? () => zoomSetting.set(zoomSetting.value + delta * zoomSetting.step)
 					: () => zoomSetting.set(zoomSetting.defaultValue),
 			});
 		}
@@ -115,6 +128,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
 		label: "Open file",
 		keywords: ["browse", "add"],
 		shortcut: "⌘O",
+		kind: 'action',
 		action: openFileDialog,
 	});
 
@@ -123,11 +137,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
 			id: "close-tab",
 			label: "Close tab",
 			shortcut: "⌘W",
+			kind: 'action',
 			action: () => closeTab(tabs.activeIndex),
 		});
 		commands.push({
 			id: "close-all",
 			label: "Close all tabs",
+			kind: 'action',
 			action: () => {
 				for (let i = tabs.items.length - 1; i >= 0; i--) closeTab(i);
 			},
@@ -140,11 +156,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
 			id: "switch-tab",
 			label: "Switch tab...",
 			keywords: ["go to", "navigate"],
+			kind: 'parent',
 			children: () =>
 				tabs.items.map((tab, i) => ({
 					id: `tab:${tab.path}`,
 					label: tab.filename,
 					detail: i === tabs.activeIndex ? "✓" : undefined,
+					kind: 'action' as const,
 					action: () => tabs.activate(i),
 				})),
 		});
@@ -155,6 +173,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
 		id: "set-default-viewer",
 		label: "Set as default markdown viewer",
 		keywords: ["default", "finder", "associate", "open with", "system"],
+		kind: 'action',
 		action: async () => {
 			const isDefault = await invoke<boolean>("is_default_markdown_viewer");
 			if (isDefault) return;
@@ -168,6 +187,7 @@ export function buildCommands(ctx: CommandContext): Command[] {
 		label: "Preferences",
 		keywords: ["settings", "options", "configure"],
 		shortcut: "⌘,",
+		kind: 'action',
 		action: () => prefs.openPanel(),
 	});
 

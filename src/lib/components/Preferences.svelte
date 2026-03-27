@@ -27,7 +27,7 @@
 	$effect(() => {
 		if (prefs.showPanel) {
 			dialogEl?.showModal();
-			checkDefaultViewer();
+			checkDefaultViewer().catch(console.error);
 		} else {
 			dialogEl?.close();
 		}

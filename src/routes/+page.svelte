@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
-	import { onMount } from "svelte";
 	import { tabs } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
 	import { preferences as prefs } from "$lib/preferences.svelte";
@@ -10,7 +9,7 @@
 	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
 	import { copyCode } from "$lib/copy-code";
 	import { scrollSpy } from "$lib/scroll-spy";
-	import { toc } from "$lib/toc.svelte";
+	import { toc } from "$lib/toc";
 	import TabBar from "$lib/components/TabBar.svelte";
 	import FloatingDock from "$lib/components/FloatingDock.svelte";
 	import EmptyState from "$lib/components/EmptyStateStamp.svelte";
@@ -59,7 +58,7 @@
 		}
 	}
 
-	onMount(() => {
+	$effect(() => {
 		prefs.init().catch((err) => console.error("Failed to initialize preferences:", err));
 
 		const unlistenChanged = listen<FileContent>("file-changed", (event) => {

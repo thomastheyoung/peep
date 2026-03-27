@@ -1,3 +1,7 @@
+<script module lang="ts">
+	const cssCache = new Map<string, string>();
+</script>
+
 <script lang="ts">
 	import { themes } from "$lib/themes/registry";
 	import { renderMarkdown } from "$lib/markdown";
@@ -7,10 +11,8 @@
 
 	let hostEl: HTMLDivElement | undefined = $state();
 	let shadow: ShadowRoot | undefined;
-	let styleEl: HTMLStyleElement | undefined = $state();
-	let contentEl: HTMLDivElement | undefined = $state();
-
-	const cssCache = new Map<string, string>();
+	let styleEl: HTMLStyleElement | undefined;
+	let contentEl: HTMLDivElement | undefined;
 
 	const PREVIEW_OVERRIDES = `
 		.app { margin: 0; }
@@ -44,10 +46,9 @@
 		el.innerHTML = html;
 	}
 
-	// Set up shadow DOM structure (runs once)
-	$effect(() => {
-		if (!hostEl) return;
-		if (shadow) return;
+	function ensureShadow(): boolean {
+		if (shadow) return true;
+		if (!hostEl) return false;
 
 		shadow = hostEl.attachShadow({ mode: "open" });
 		styleEl = document.createElement("style");
@@ -60,32 +61,12 @@
 		setContent(contentEl, SAMPLE_HTML);
 		app.appendChild(contentEl);
 		shadow.appendChild(app);
-	});
+		return true;
+	}
 
-	// Render markdown content (reacts to markdown prop changes)
+	// Set up shadow DOM + load theme CSS (reacts to themeId changes)
 	$effect(() => {
-		if (!contentEl) return;
-		const src = markdown;
-
-		if (!src) {
-			setContent(contentEl, SAMPLE_HTML);
-			return;
-		}
-
-		let cancelled = false;
-		renderMarkdown(src).then(({ html }) => {
-			if (cancelled) return;
-			if (contentEl) setContent(contentEl, html);
-		});
-
-		return () => {
-			cancelled = true;
-		};
-	});
-
-	// Load theme CSS (reacts to themeId changes)
-	$effect(() => {
-		if (!styleEl) return;
+		if (!ensureShadow() || !styleEl) return;
 
 		const id = themeId;
 		const cached = cssCache.get(id);
@@ -103,6 +84,27 @@
 			const combined = baseCssRaw + "\n" + themeCss + "\n" + PREVIEW_OVERRIDES;
 			cssCache.set(id, combined);
 			if (styleEl && themeId === id) styleEl.textContent = combined;
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Render markdown content (reacts to markdown prop changes)
+	$effect(() => {
+		if (!ensureShadow() || !contentEl) return;
+		const src = markdown;
+
+		if (!src) {
+			setContent(contentEl, SAMPLE_HTML);
+			return;
+		}
+
+		let cancelled = false;
+		renderMarkdown(src).then(({ html }) => {
+			if (cancelled) return;
+			if (contentEl) setContent(contentEl, html);
 		});
 
 		return () => {

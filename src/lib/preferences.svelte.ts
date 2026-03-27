@@ -1,15 +1,15 @@
-import { themeState } from "./themes/theme.svelte";
-import { themes, type ThemeId } from "./themes/registry";
+import { themeState, isThemeId } from "./themes/theme.svelte";
+import { type ThemeId } from "./themes/registry";
 
-export type ContentWidth = "auto" | "wide" | "full";
-export type SettingsSection = "appearance" | "layout" | "font";
+type ContentWidth = "auto" | "wide" | "full";
+type SettingsSection = "appearance" | "layout" | "font";
 
 // ---------------------------------------------------------------------------
 // Settings registry types — the single source of truth consumed by both
 // the Preferences panel and the command palette.
 // ---------------------------------------------------------------------------
 
-export interface ChoiceOption<T extends string = string> {
+interface ChoiceOption<T extends string = string> {
 	value: T;
 	label: string;
 	description?: string;
@@ -68,8 +68,19 @@ interface StoredPreferences {
 function parseStoredPreferences(raw: string | null): Partial<StoredPreferences> {
 	if (!raw) return {};
 	try {
-		const parsed = JSON.parse(raw);
-		return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+		const parsed: unknown = JSON.parse(raw);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+		const obj = parsed as Record<string, unknown>;
+		const result: Partial<StoredPreferences> = {};
+		if (typeof obj.theme === "string") result.theme = obj.theme;
+		if (typeof obj.contentWidth === "string" && ["auto", "wide", "full"].includes(obj.contentWidth))
+			result.contentWidth = obj.contentWidth as ContentWidth;
+		if (typeof obj.zoomLevel === "number" && isFinite(obj.zoomLevel)) result.zoomLevel = obj.zoomLevel;
+		if (typeof obj.fontWeight === "number" && isFinite(obj.fontWeight)) result.fontWeight = obj.fontWeight;
+		if (typeof obj.letterSpacing === "number" && isFinite(obj.letterSpacing))
+			result.letterSpacing = obj.letterSpacing;
+		if (typeof obj.lineHeight === "number" && isFinite(obj.lineHeight)) result.lineHeight = obj.lineHeight;
+		return result;
 	} catch {
 		return {};
 	}
@@ -141,6 +152,10 @@ function allStored(themeId: string): StoredPreferences {
 	return { theme: themeId, contentWidth, zoomLevel, fontWeight, letterSpacing, lineHeight };
 }
 
+function persist() {
+	saveStored(allStored(themeState.id));
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -148,32 +163,32 @@ function allStored(themeId: string): StoredPreferences {
 // Setter helpers — shared by direct API and settings registry
 function setContentWidthValue(value: ContentWidth) {
 	contentWidth = value;
-	saveStored(allStored(themeState.id));
+	persist();
 }
 
 function setFontWeightValue(value: number) {
 	fontWeight = Math.max(FONT_WEIGHT_MIN, Math.min(FONT_WEIGHT_MAX, value));
-	saveStored(allStored(themeState.id));
+	persist();
 }
 
 function setLetterSpacingValue(value: number) {
 	letterSpacing = Math.max(LETTER_SPACING_MIN, Math.min(LETTER_SPACING_MAX, Math.round(value * 100) / 100));
-	saveStored(allStored(themeState.id));
+	persist();
 }
 
 function setLineHeightValue(value: number) {
 	lineHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, Math.round(value * 10) / 10));
-	saveStored(allStored(themeState.id));
+	persist();
 }
 
 function setZoomValue(value: number) {
 	zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 10) / 10));
-	saveStored(allStored(themeState.id));
+	persist();
 }
 
 async function setThemeValue(id: ThemeId) {
 	await themeState.setTheme(id);
-	saveStored(allStored(id));
+	persist();
 }
 
 const settings: SettingDef[] = $derived([
@@ -189,8 +204,8 @@ const settings: SettingDef[] = $derived([
 			swatches: t.colors,
 		})),
 		value: themeState.id,
-		select: setThemeValue,
-	} satisfies ChoiceSetting<ThemeId> as SettingDef,
+		select: (value: string) => setThemeValue(value as ThemeId),
+	},
 	{
 		type: "choice",
 		id: "content-width",
@@ -203,8 +218,8 @@ const settings: SettingDef[] = $derived([
 			{ value: "full", label: "Full", description: "Use the entire window width" },
 		],
 		value: contentWidth,
-		select: setContentWidthValue,
-	} satisfies ChoiceSetting<ContentWidth> as SettingDef,
+		select: (value: string) => setContentWidthValue(value as ContentWidth),
+	},
 	{
 		type: "range",
 		id: "zoom",
@@ -353,8 +368,8 @@ export const preferences: PreferencesAPI = {
 		if (stored.fontWeight != null) fontWeight = stored.fontWeight;
 		if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
 		if (stored.lineHeight != null) lineHeight = stored.lineHeight;
-		if (stored.theme && themes.some((t) => t.id === stored.theme)) {
-			await themeState.setTheme(stored.theme as ThemeId);
+		if (stored.theme && isThemeId(stored.theme)) {
+			await themeState.setTheme(stored.theme);
 		} else {
 			await themeState.init();
 		}

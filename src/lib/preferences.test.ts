@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the theme module to isolate preferences testing
 vi.mock("./themes/theme.svelte", () => {
 	let id = "github-dark";
+	const allThemes = [
+		{ id: "github-dark", name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" }, load: () => Promise.resolve("") },
+		{ id: "github-light", name: "GitHub Light", colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" }, load: () => Promise.resolve("") },
+	];
 	return {
 		themeState: {
 			get id() {
@@ -11,14 +15,8 @@ vi.mock("./themes/theme.svelte", () => {
 			get css() {
 				return "";
 			},
-			get meta() {
-				return { id, name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" } };
-			},
 			get all() {
-				return [
-					{ id: "github-dark", name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" }, load: () => Promise.resolve("") },
-					{ id: "github-light", name: "GitHub Light", colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" }, load: () => Promise.resolve("") },
-				];
+				return allThemes;
 			},
 			async setTheme(newId: string) {
 				id = newId;
@@ -27,6 +25,7 @@ vi.mock("./themes/theme.svelte", () => {
 				id = "github-dark";
 			},
 		},
+		isThemeId: (value: string) => allThemes.some((t) => t.id === value),
 	};
 });
 
