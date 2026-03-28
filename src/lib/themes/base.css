@@ -267,6 +267,10 @@
 		accent-color: var(--md-accent, #58a6ff);
 	}
 
+	.markdown-body li:has(> input[type="checkbox"]:checked) {
+		color: color-mix(in srgb, currentColor 50%, transparent);
+	}
+
 	/* Copy-code button */
 	.markdown-body .copy-code-btn {
 		position: absolute;

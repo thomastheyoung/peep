@@ -1,383 +1,387 @@
 @font-face {
-	font-family: "Space Grotesk";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/space-grotesk-latin-400-normal.woff2") format("woff2");
+  font-family: "Space Grotesk";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
-	font-family: "Space Grotesk";
-	font-weight: 500;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/space-grotesk-latin-500-normal.woff2") format("woff2");
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin-500-normal.woff2") format("woff2");
 }
 
 @font-face {
-	font-family: "Space Grotesk";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/space-grotesk-latin-700-normal.woff2") format("woff2");
+  font-family: "Space Grotesk";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin-700-normal.woff2") format("woff2");
 }
 
 @layer theme {
-	.app {
-		background: #fffdf0;
-		color: #1a1a1a;
-		font-family: "Space Grotesk", sans-serif;
-		--md-accent: #ff5722;
-	}
+  .app {
+    background: #fffdf0;
+    color: #1a1a1a;
+    font-family: "Space Grotesk", sans-serif;
+    --md-accent: #ff5722;
+  }
 
-	/* Markdown styling */
-	.markdown-body {
-		max-width: var(--md-content-width, 800px);
-		font-size: 16px;
-	}
+  /* Markdown styling */
+  .markdown-body {
+    max-width: var(--md-content-width, 800px);
+    font-size: 16px;
+  }
 
-	.markdown-body h1 {
-		font-family: "Space Grotesk", sans-serif;
-		font-weight: 700;
-		font-size: 42px;
-		text-transform: uppercase;
-		letter-spacing: 1px;
-		border-bottom: 4px solid #1a1a1a;
-		padding-bottom: 12px;
-		margin-top: 48px;
-		margin-bottom: 24px;
-		line-height: 1.2;
-	}
+  .markdown-body h1 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 42px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 4px solid #1a1a1a;
+    padding-bottom: 12px;
+    margin-top: 48px;
+    margin-bottom: 24px;
+    line-height: 1.2;
+  }
 
-	.markdown-body h2 {
-		font-family: "Space Grotesk", sans-serif;
-		font-weight: 700;
-		font-size: 28px;
-		border-bottom: none;
-		border-left: 6px solid #ff5722;
-		padding-left: 16px;
-		padding-bottom: 0;
-		margin-top: 40px;
-		margin-bottom: 16px;
-		line-height: 1.3;
-	}
+  .markdown-body h2 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    border-bottom: none;
+    border-left: 6px solid #ff5722;
+    padding-left: 16px;
+    padding-bottom: 0;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    line-height: 1.3;
+  }
 
-	.markdown-body h3 {
-		font-family: "Space Grotesk", sans-serif;
-		font-weight: 700;
-		font-size: 22px;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		margin-top: 32px;
-	}
+  .markdown-body h3 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 32px;
+  }
 
-	.markdown-body h4 {
-		font-family: "Space Grotesk", sans-serif;
-		font-weight: 700;
-		font-size: 18px;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		border-bottom: 2px solid #1a1a1a;
-		padding-bottom: 6px;
-		display: inline-block;
-	}
+  .markdown-body h4 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 6px;
+    display: inline-block;
+  }
 
-	.markdown-body a {
-		color: #ff5722;
-		text-decoration: underline;
-		text-underline-offset: 4px;
-		text-decoration-thickness: 3px;
-		font-weight: 500;
-	}
+  .markdown-body a {
+    color: #ff5722;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 3px;
+    font-weight: 500;
+  }
 
-	.markdown-body a:hover {
-		background: #ff5722;
-		color: #fffdf0;
-		text-decoration: none;
-		padding: 0 4px;
-		margin: 0 -4px;
-	}
+  .markdown-body a:hover {
+    background: #ff5722;
+    color: #fffdf0;
+    text-decoration: none;
+    padding: 0 4px;
+    margin: 0 -4px;
+  }
 
-	.markdown-body code {
-		font-family: "Space Mono", "Courier New", monospace;
-		background: #ffe0cc;
-		color: #d84315;
-		border: none;
-		border-radius: 0;
-		padding: 2px 6px;
-		font-weight: 700;
-	}
+  .markdown-body code {
+    font-family: "Space Mono", "Courier New", monospace;
+    background: #ffe0cc;
+    color: #d84315;
+    border: none;
+    border-radius: 0;
+    padding: 2px 6px;
+    font-weight: 700;
+  }
 
-	.markdown-body pre {
-		background: #1a1a1a;
-		border: 3px solid #1a1a1a;
-		border-radius: 0;
-		padding: 24px;
-		margin: 24px 0;
-		box-shadow: 6px 6px 0 #ff5722;
-	}
+  .markdown-body pre {
+    background: #1a1a1a;
+    border: 3px solid #1a1a1a;
+    border-radius: 0;
+    padding: 24px;
+    margin: 24px 0;
+    box-shadow: 6px 6px 0 #ff5722;
+  }
 
-	.markdown-body pre code {
-		font-family: "Space Mono", "Courier New", monospace;
-		background: none;
-		border: none;
-		padding: 0;
-		color: #00ff41;
-	}
+  .markdown-body pre code {
+    font-family: "Space Mono", "Courier New", monospace;
+    background: none;
+    border: none;
+    padding: 0;
+    color: #e8e0d0;
+  }
 
-	.markdown-body blockquote {
-		border-left: 6px solid #ff5722;
-		margin: 24px 0;
-		padding: 16px 24px;
-		font-style: italic;
-		font-weight: 500;
-		transform: rotate(-1deg);
-		box-shadow: 4px 4px 0 #1a1a1a;
-		border: 3px solid #1a1a1a;
-		border-left: 6px solid #ff5722;
-		background: rgba(255, 87, 34, 0.06);
-	}
+  .markdown-body blockquote {
+    border-left: 6px solid #ff5722;
+    margin: 24px 0;
+    padding: 16px 24px;
+    font-style: italic;
+    font-weight: 500;
+    transform: rotate(-1deg);
+    box-shadow: 4px 4px 0 #1a1a1a;
+    border: 3px solid #1a1a1a;
+    border-left: 6px solid #ff5722;
+    background: rgba(255, 87, 34, 0.06);
+  }
 
-	.markdown-body blockquote p {
-		margin-bottom: 0;
-		font-size: 17px;
-	}
+  .markdown-body blockquote p {
+    margin-bottom: 0;
+    font-size: 17px;
+  }
 
-	.markdown-body table {
-		border: 3px solid #1a1a1a;
-		margin: 24px 0;
-		box-shadow: 5px 5px 0 #1a1a1a;
-	}
+  .markdown-body table {
+    border: 3px solid #1a1a1a;
+    margin: 24px 0;
+    box-shadow: 5px 5px 0 #1a1a1a;
+  }
 
-	.markdown-body thead {
-		background: #1a1a1a;
-		color: #fffdf0;
-	}
+  .markdown-body thead {
+    background: #1a1a1a;
+    color: #fffdf0;
+  }
 
-	.markdown-body th {
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 1px;
-		font-size: 13px;
-		padding: 12px 16px;
-		border: 3px solid #1a1a1a;
-		color: #fffdf0;
-	}
+  .markdown-body th {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 13px;
+    padding: 12px 16px;
+    border: 3px solid #1a1a1a;
+    color: #fffdf0;
+  }
 
-	.markdown-body td {
-		padding: 10px 16px;
-		border: 3px solid #1a1a1a;
-	}
+  .markdown-body td {
+    padding: 10px 16px;
+    border: 3px solid #1a1a1a;
+  }
 
-	.markdown-body tbody tr:nth-child(even) {
-		background: rgba(255, 87, 34, 0.04);
-	}
+  .markdown-body tbody tr:nth-child(even) {
+    background: rgba(255, 87, 34, 0.04);
+  }
 
-	.markdown-body tbody tr:hover {
-		background: rgba(255, 87, 34, 0.12);
-	}
+  .markdown-body tbody tr:hover {
+    background: rgba(255, 87, 34, 0.12);
+  }
 
-	.markdown-body hr {
-		border: none;
-		border-top: 4px solid #1a1a1a;
-		margin: 40px 0;
-		background: none;
-		height: auto;
-	}
+  .markdown-body hr {
+    border: none;
+    border-top: 4px solid #1a1a1a;
+    margin: 40px 0;
+    background: none;
+    height: auto;
+  }
 
-	.markdown-body ul {
-		list-style-type: square;
-		padding-left: 24px;
-	}
+  .markdown-body ul {
+    list-style-type: square;
+    padding-left: 24px;
+  }
 
-	.markdown-body ul li::marker {
-		color: #ff5722;
-		font-size: 1.1em;
-	}
+  .markdown-body ul li::marker {
+    color: #ff5722;
+    font-size: 1.1em;
+  }
 
-	.markdown-body ol li::marker {
-		color: #ff5722;
-		font-weight: 700;
-	}
+  .markdown-body ol li::marker {
+    color: #ff5722;
+    font-weight: 700;
+  }
 
-	.markdown-body img {
-		border: 3px solid #1a1a1a;
-		box-shadow: 6px 6px 0 #1a1a1a;
-		border-radius: 0;
-	}
+  .markdown-body img {
+    border: 3px solid #1a1a1a;
+    box-shadow: 6px 6px 0 #1a1a1a;
+    border-radius: 0;
+  }
 
-	/* Kbd — key-cap shape */
-	.markdown-body kbd {
-		font-family: "Space Grotesk", sans-serif;
-		font-size: 0.85em;
-		font-weight: 700;
-		padding: 3px 8px 5px;
-		background: #1a1a1a;
-		color: #fffdf0;
-		border: 3px solid #1a1a1a;
-		border-bottom-width: 5px;
-		border-radius: 4px;
-		box-shadow: 0 2px 0 #555;
-		display: inline-block;
-		line-height: 1.2;
-		vertical-align: baseline;
-		min-width: 1.5em;
-		text-align: center;
-	}
+  /* Kbd — key-cap shape */
+  .markdown-body kbd {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.85em;
+    font-weight: 700;
+    padding: 3px 8px 5px;
+    background: #1a1a1a;
+    color: #fffdf0;
+    border: 3px solid #1a1a1a;
+    border-bottom-width: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 0 #555;
+    display: inline-block;
+    line-height: 1.2;
+    vertical-align: baseline;
+    min-width: 1.5em;
+    text-align: center;
+  }
 
-	/* Headings with links — inherit heading style */
-	.markdown-body h1 a,
-	.markdown-body h2 a,
-	.markdown-body h3 a,
-	.markdown-body h4 a,
-	.markdown-body h5 a,
-	.markdown-body h6 a {
-		color: inherit;
-		text-decoration-color: #ff5722;
-	}
+  /* Headings with links — inherit heading style */
+  .markdown-body h1 a,
+  .markdown-body h2 a,
+  .markdown-body h3 a,
+  .markdown-body h4 a,
+  .markdown-body h5 a,
+  .markdown-body h6 a {
+    color: inherit;
+    text-decoration-color: #ff5722;
+  }
 
-	.markdown-body h1 a:hover,
-	.markdown-body h2 a:hover,
-	.markdown-body h3 a:hover,
-	.markdown-body h4 a:hover,
-	.markdown-body h5 a:hover,
-	.markdown-body h6 a:hover {
-		color: #ff5722;
-		background: none;
-		padding: 0;
-		margin: 0;
-	}
+  .markdown-body h1 a:hover,
+  .markdown-body h2 a:hover,
+  .markdown-body h3 a:hover,
+  .markdown-body h4 a:hover,
+  .markdown-body h5 a:hover,
+  .markdown-body h6 a:hover {
+    color: #ff5722;
+    background: none;
+    padding: 0;
+    margin: 0;
+  }
 
-	/* Task list — no bullets, brutalist checkmarks */
-	.markdown-body ul:has(input[type="checkbox"]) {
-		list-style: none;
-		padding-left: 0;
-	}
+  /* Task list — no bullets, brutalist checkmarks */
+  .markdown-body ul:has(input[type="checkbox"]) {
+    list-style: none;
+    padding-left: 0;
+  }
 
-	.markdown-body ul:has(input[type="checkbox"]) li {
-		position: relative;
-		padding-left: 2em;
-	}
+  .markdown-body ul:has(input[type="checkbox"]) li {
+    position: relative;
+    padding-left: 2em;
+  }
 
-	.markdown-body input[type="checkbox"] {
-		appearance: none;
-		-webkit-appearance: none;
-		width: 1.3em;
-		height: 1.3em;
-		border: 3px solid #1a1a1a;
-		border-radius: 0;
-		background: #fffdf0;
-		position: absolute;
-		left: 0;
-		top: 0.15em;
-		cursor: pointer;
-	}
+  .markdown-body input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.3em;
+    height: 1.3em;
+    border: 3px solid #1a1a1a;
+    border-radius: 0;
+    background: #fffdf0;
+    position: absolute;
+    left: 0;
+    top: 0.15em;
+    cursor: pointer;
+  }
 
-	.markdown-body input[type="checkbox"]:checked {
-		background: #ff5722;
-		border-color: #1a1a1a;
-	}
+  .markdown-body input[type="checkbox"]:checked {
+    background: #ff5722;
+    border-color: #1a1a1a;
+  }
 
-	.markdown-body input[type="checkbox"]:checked::after {
-		content: "✕";
-		color: #fffdf0;
-		font-size: 1em;
-		font-weight: 900;
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		line-height: 1;
-	}
+  .markdown-body input[type="checkbox"]:checked::after {
+    content: "✕";
+    color: #fffdf0;
+    font-size: 1em;
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+  }
 
-	/* Footnotes */
-	.markdown-body section[data-footnotes] {
-		margin-top: 3em;
-		padding-top: 1.5em;
-		border-top: 4px solid #1a1a1a;
-		font-size: 0.9em;
-	}
+  .markdown-body li:has(> input[type="checkbox"]:checked) {
+    color: color-mix(in srgb, currentColor 50%, transparent);
+  }
 
-	.markdown-body section[data-footnotes] > .sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0, 0, 0, 0);
-	}
+  /* Footnotes */
+  .markdown-body section[data-footnotes] {
+    margin-top: 3em;
+    padding-top: 1.5em;
+    border-top: 4px solid #1a1a1a;
+    font-size: 0.9em;
+  }
 
-	.markdown-body section[data-footnotes] ol {
-		padding-left: 1.5em;
-	}
+  .markdown-body section[data-footnotes] > .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
 
-	.markdown-body section[data-footnotes] li {
-		margin-bottom: 0.5em;
-	}
+  .markdown-body section[data-footnotes] ol {
+    padding-left: 1.5em;
+  }
 
-	.markdown-body a[data-footnote-ref] {
-		font-weight: 700;
-		color: #ff5722;
-		text-decoration: none;
-		font-size: 0.8em;
-		border: 2px solid #ff5722;
-		padding: 0 4px;
-		margin-left: 2px;
-	}
+  .markdown-body section[data-footnotes] li {
+    margin-bottom: 0.5em;
+  }
 
-	.markdown-body a[data-footnote-ref]:hover {
-		background: #ff5722;
-		color: #fffdf0;
-		padding: 0 4px;
-		margin: 0 0 0 2px;
-	}
+  .markdown-body a[data-footnote-ref] {
+    font-weight: 700;
+    color: #ff5722;
+    text-decoration: none;
+    font-size: 0.8em;
+    border: 2px solid #ff5722;
+    padding: 0 4px;
+    margin-left: 2px;
+  }
 
-	.markdown-body a[data-footnote-backref] {
-		color: #ff5722;
-		text-decoration: none;
-		font-weight: 700;
-	}
+  .markdown-body a[data-footnote-ref]:hover {
+    background: #ff5722;
+    color: #fffdf0;
+    padding: 0 4px;
+    margin: 0 0 0 2px;
+  }
 
-	/* Definition lists */
-	.markdown-body dt {
-		font-family: "Space Grotesk", sans-serif;
-		font-weight: 700;
-		font-size: 1.05em;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		color: #ff5722;
-		margin-top: 1.2em;
-		margin-bottom: 0.3em;
-	}
+  .markdown-body a[data-footnote-backref] {
+    color: #ff5722;
+    text-decoration: none;
+    font-weight: 700;
+  }
 
-	.markdown-body dt:first-child {
-		margin-top: 0;
-	}
+  /* Definition lists */
+  .markdown-body dt {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 1.05em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #ff5722;
+    margin-top: 1.2em;
+    margin-bottom: 0.3em;
+  }
 
-	.markdown-body dd {
-		margin-left: 0;
-		padding-left: 1.5em;
-		border-left: 2px solid #ddd;
-		margin-bottom: 0.5em;
-	}
+  .markdown-body dt:first-child {
+    margin-top: 0;
+  }
 
-	.markdown-body ::selection {
-		background: #ff5722;
-		color: #fffdf0;
-	}
+  .markdown-body dd {
+    margin-left: 0;
+    padding-left: 1.5em;
+    border-left: 2px solid #ddd;
+    margin-bottom: 0.5em;
+  }
 
-	/* Shiki syntax tokens */
-	.shiki,
-	.shiki span {
-		--shiki-foreground: #fffdf0;
-		--shiki-background: #1a1a1a;
-		--shiki-token-constant: #ff9800;
-		--shiki-token-string: #8bc34a;
-		--shiki-token-comment: #757575;
-		--shiki-token-keyword: #ff5722;
-		--shiki-token-parameter: #ffc107;
-		--shiki-token-function: #ffeb3b;
-		--shiki-token-string-expression: #8bc34a;
-		--shiki-token-punctuation: #fffdf0;
-		--shiki-token-link: #ff5722;
-	}
+  .markdown-body ::selection {
+    background: #ff5722;
+    color: #fffdf0;
+  }
+
+  /* Shiki syntax tokens */
+  .shiki,
+  .shiki span {
+    --shiki-foreground: #e8e0d0;
+    --shiki-background: #1a1a1a;
+    --shiki-token-constant: #d4884a;
+    --shiki-token-string: #c4ad5a;
+    --shiki-token-comment: #7a7268;
+    --shiki-token-keyword: #e8623a;
+    --shiki-token-parameter: #daa868;
+    --shiki-token-function: #e0a070;
+    --shiki-token-string-expression: #c4ad5a;
+    --shiki-token-punctuation: #e8e0d0;
+    --shiki-token-link: #e8623a;
+  }
 }
