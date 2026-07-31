@@ -12,6 +12,9 @@ vite.config.ts.timestamp-*
 wip/
 storybook-static/
 
+# Claude Code local settings and agent worktrees (per-machine)
+.claude/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
