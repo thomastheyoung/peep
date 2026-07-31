@@ -70,23 +70,25 @@
 	.markdown-body {
 		max-width: var(--md-content-width, 780px);
 		margin: 0 auto;
+		/* The left padding doubles as the gutter that themes hang decorations
+		   into (see neo-brutalist's h2 accent bar). Themes overriding padding
+		   must keep the inline start >= their largest hanging offset, or the
+		   decoration is silently clipped by .content's overflow-x: hidden. */
 		padding: 32px 40px 80px;
 		line-height: var(--md-line-height, 1.7);
 		font-size: 16px;
 		font-weight: var(--md-font-weight, 400);
 		letter-spacing: var(--md-letter-spacing, 0em);
+		/* `text-wrap` inherits, so this covers headings too. Deliberately not
+		   `balance` on headings: balance equalizes line widths, which on a
+		   two-line heading pulls the first line back to ~50% of the available
+		   width and leaves a large gutter. `pretty` keeps lines full and only
+		   guards the last line against orphans. */
 		text-wrap: pretty;
 		hanging-punctuation: first allow-end last;
 	}
 
 	/* Headings */
-	.markdown-body h1,
-	.markdown-body h2,
-	.markdown-body h3,
-	.markdown-body h4 {
-		text-wrap: balance;
-	}
-
 	.markdown-body h1 {
 		font-size: 2em;
 		font-weight: 700;

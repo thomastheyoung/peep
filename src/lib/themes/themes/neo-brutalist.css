@@ -54,8 +54,17 @@
     font-weight: 700;
     font-size: 28px;
     border-bottom: none;
-    border-left: 6px solid #ff5722;
-    padding-left: 16px;
+    /* The accent bar hangs in the article's left padding rather than indenting
+       the heading, so h2 text stays flush with hr, paragraphs, lists and every
+       other block. The negative margin cancels the border+gap, which also gives
+       the heading back that much text width — enough to keep some headings on
+       one line. Derived via calc() so editing the bar or gap can't desync it.
+       Requires .markdown-body left padding >= bar + gap (base.css). */
+    --h2-bar: 6px;
+    --h2-gap: 16px;
+    border-left: var(--h2-bar) solid #ff5722;
+    padding-left: var(--h2-gap);
+    margin-left: calc(-1 * (var(--h2-bar) + var(--h2-gap)));
     padding-bottom: 0;
     margin-top: 40px;
     margin-bottom: 16px;
@@ -126,7 +135,6 @@
   }
 
   .markdown-body blockquote {
-    border-left: 6px solid #ff5722;
     margin: 24px 0;
     padding: 16px 24px;
     font-style: italic;
@@ -288,10 +296,6 @@
     left: 50%;
     transform: translate(-50%, -50%);
     line-height: 1;
-  }
-
-  .markdown-body li:has(> input[type="checkbox"]:checked) {
-    color: color-mix(in srgb, currentColor 50%, transparent);
   }
 
   /* Footnotes */

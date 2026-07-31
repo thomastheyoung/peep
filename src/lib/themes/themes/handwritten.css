@@ -19,7 +19,11 @@
 		max-width: var(--md-content-width, 800px);
 		border-left: 2px solid #e74c3c;
 		padding: 48px 32px 80px 60px;
-		margin-left: calc(50% - var(--md-content-width, 800px) / 2);
+		/* Centering comes from base.css `margin: 0 auto`. A manual
+		   `calc(50% - width/2)` used to live here, but it goes negative once the
+		   window is narrower than the content width (e.g. -100px at the 1200px
+		   "wide" setting on a 1000px window), pushing the ruled border and left
+		   padding off-screen where overflow-x: hidden silently clips them. */
 		line-height: 2;
 	}
 
