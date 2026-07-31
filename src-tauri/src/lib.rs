@@ -2,7 +2,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, RunEvent};
@@ -16,7 +16,7 @@ mod default_viewer {
 
     const MARKDOWN_UTI: &str = "net.daringfireball.markdown";
     const BUNDLE_ID: &str = "com.tlj.peep";
-    const LS_ROLES_ALL: u32 = 0xFFFFFFFF;
+    const LS_ROLES_ALL: u32 = 0xFFFF_FFFF;
 
     #[link(name = "CoreServices", kind = "framework")]
     extern "C" {
@@ -62,7 +62,7 @@ mod default_viewer {
     }
 }
 
-fn is_markdown_file(path: &PathBuf) -> bool {
+fn is_markdown_file(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
         .is_some_and(|e| ALLOWED_EXTENSIONS.contains(&e))
@@ -111,20 +111,18 @@ struct FileContent {
 }
 
 #[tauri::command]
-fn read_file(path: String) -> Result<FileContent, String> {
+fn read_file(path: &str) -> Result<FileContent, String> {
     let canonical =
-        fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
+        fs::canonicalize(PathBuf::from(path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
 
     if !is_markdown_file(&canonical) {
         return Err("Only .md and .markdown files are supported".into());
     }
 
-    let content =
-        fs::read_to_string(&canonical).map_err(|e| format!("Cannot read file: {e}"))?;
+    let content = fs::read_to_string(&canonical).map_err(|e| format!("Cannot read file: {e}"))?;
     let filename = canonical
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.clone());
+        .map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned());
 
     Ok(FileContent {
         path: canonical.to_string_lossy().into_owned(),
@@ -134,40 +132,37 @@ fn read_file(path: String) -> Result<FileContent, String> {
 }
 
 #[tauri::command]
-fn watch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
+// Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
+#[allow(clippy::needless_pass_by_value)]
+fn watch_file(path: &str, app: tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let path_buf =
-        fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
+        fs::canonicalize(PathBuf::from(path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
 
     if !is_markdown_file(&path_buf) {
         return Err("Only .md and .markdown files are supported".into());
     }
 
-    let mut watched = state
+    let mut tracked_files = state
         .watched_files
         .lock()
         .map_err(|e| format!("State lock poisoned: {e}"))?;
-    if watched.contains(&path_buf) {
+    if tracked_files.contains(&path_buf) {
         return Ok(());
     }
-    watched.insert(path_buf.clone());
-    drop(watched);
+    tracked_files.insert(path_buf.clone());
+    drop(tracked_files);
 
     let handle = app.clone();
-    let watch_path = path_buf.clone();
 
     let mut watcher_guard = state
         .watcher
         .lock()
         .map_err(|e| format!("Watcher lock poisoned: {e}"))?;
     if watcher_guard.is_none() {
-        let handle = handle.clone();
         let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
-                if matches!(
-                    event.kind,
-                    EventKind::Modify(_) | EventKind::Create(_)
-                ) {
+                if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                     for path in &event.paths {
                         if let Ok(content) = fs::read_to_string(path) {
                             let filename = path
@@ -191,27 +186,30 @@ fn watch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
         *watcher_guard = Some(watcher);
     }
 
-    if let Some(watcher) = watcher_guard.as_mut() {
+    let result = watcher_guard.as_mut().map_or(Ok(()), |watcher| {
         watcher
-            .watch(&watch_path, RecursiveMode::NonRecursive)
-            .map_err(|e| format!("Cannot watch file: {e}"))?;
-    }
+            .watch(&path_buf, RecursiveMode::NonRecursive)
+            .map_err(|e| format!("Cannot watch file: {e}"))
+    });
+    drop(watcher_guard);
 
-    Ok(())
+    result
 }
 
 #[tauri::command]
-fn unwatch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
+// Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
+#[allow(clippy::needless_pass_by_value)]
+fn unwatch_file(path: &str, app: tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let path_buf =
-        fs::canonicalize(PathBuf::from(&path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
+        fs::canonicalize(PathBuf::from(path)).map_err(|e| format!("Cannot resolve path: {e}"))?;
 
-    let mut watched = state
+    let mut tracked_files = state
         .watched_files
         .lock()
         .map_err(|e| format!("State lock poisoned: {e}"))?;
-    watched.remove(&path_buf);
-    drop(watched);
+    tracked_files.remove(&path_buf);
+    drop(tracked_files);
 
     let mut watcher_guard = state
         .watcher
@@ -220,6 +218,7 @@ fn unwatch_file(path: String, app: tauri::AppHandle) -> Result<(), String> {
     if let Some(watcher) = watcher_guard.as_mut() {
         let _ = watcher.unwatch(&path_buf);
     }
+    drop(watcher_guard);
 
     Ok(())
 }
@@ -249,15 +248,72 @@ fn set_default_markdown_viewer() -> Result<(), String> {
 }
 
 #[tauri::command]
+// Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
+#[allow(clippy::needless_pass_by_value)]
 fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
     let state = app.state::<AppState>();
     let mut guard = state
         .initial_files
         .lock()
-        .unwrap_or_else(|e| e.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     guard.drain(..).collect()
 }
 
+/// Build the native application menu (App, Edit, View submenus).
+fn build_menu(handle: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let app_menu = Submenu::with_items(
+        handle,
+        "peep",
+        true,
+        &[
+            &PredefinedMenuItem::about(handle, None, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::services(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::hide(handle, None)?,
+            &PredefinedMenuItem::hide_others(handle, None)?,
+            &PredefinedMenuItem::show_all(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::quit(handle, None)?,
+        ],
+    )?;
+
+    let edit_menu = Submenu::with_items(
+        handle,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(handle, None)?,
+            &PredefinedMenuItem::redo(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::cut(handle, None)?,
+            &PredefinedMenuItem::copy(handle, None)?,
+            &PredefinedMenuItem::paste(handle, None)?,
+            &PredefinedMenuItem::select_all(handle, None)?,
+        ],
+    )?;
+
+    let zoom_in = MenuItem::with_id(handle, "zoom_in", "Zoom In", true, Some("CmdOrCtrl+="))?;
+    let zoom_out = MenuItem::with_id(handle, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?;
+    let zoom_reset = MenuItem::with_id(
+        handle,
+        "zoom_reset",
+        "Actual Size",
+        true,
+        Some("CmdOrCtrl+0"),
+    )?;
+
+    let view_menu = Submenu::with_items(handle, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
+
+    Menu::with_items(handle, &[&app_menu, &edit_menu, &view_menu])
+}
+
+/// Start the Tauri application event loop.
+///
+/// # Panics
+///
+/// Panics if the Tauri application fails to build, which indicates a
+/// malformed bundle configuration or context and is unrecoverable.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -292,59 +348,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
 
-            let app_menu = Submenu::with_items(
-                handle,
-                "peep",
-                true,
-                &[
-                    &PredefinedMenuItem::about(handle, None, None)?,
-                    &PredefinedMenuItem::separator(handle)?,
-                    &PredefinedMenuItem::services(handle, None)?,
-                    &PredefinedMenuItem::separator(handle)?,
-                    &PredefinedMenuItem::hide(handle, None)?,
-                    &PredefinedMenuItem::hide_others(handle, None)?,
-                    &PredefinedMenuItem::show_all(handle, None)?,
-                    &PredefinedMenuItem::separator(handle)?,
-                    &PredefinedMenuItem::quit(handle, None)?,
-                ],
-            )?;
-
-            let edit_menu = Submenu::with_items(
-                handle,
-                "Edit",
-                true,
-                &[
-                    &PredefinedMenuItem::undo(handle, None)?,
-                    &PredefinedMenuItem::redo(handle, None)?,
-                    &PredefinedMenuItem::separator(handle)?,
-                    &PredefinedMenuItem::cut(handle, None)?,
-                    &PredefinedMenuItem::copy(handle, None)?,
-                    &PredefinedMenuItem::paste(handle, None)?,
-                    &PredefinedMenuItem::select_all(handle, None)?,
-                ],
-            )?;
-
-            let zoom_in =
-                MenuItem::with_id(handle, "zoom_in", "Zoom In", true, Some("CmdOrCtrl+="))?;
-            let zoom_out =
-                MenuItem::with_id(handle, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?;
-            let zoom_reset = MenuItem::with_id(
-                handle,
-                "zoom_reset",
-                "Actual Size",
-                true,
-                Some("CmdOrCtrl+0"),
-            )?;
-
-            let view_menu = Submenu::with_items(
-                handle,
-                "View",
-                true,
-                &[&zoom_in, &zoom_out, &zoom_reset],
-            )?;
-
-            let menu = Menu::with_items(handle, &[&app_menu, &edit_menu, &view_menu])?;
-            app.set_menu(menu)?;
+            app.set_menu(build_menu(handle)?)?;
 
             app.on_menu_event(|app, event| {
                 let id = event.id();
@@ -372,7 +376,7 @@ pub fn run() {
                 let mut initial = state
                     .initial_files
                     .lock()
-                    .unwrap_or_else(|e| e.into_inner());
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 initial.extend(resolve_markdown_paths(&args, &cwd));
             }
             Ok(())
@@ -385,7 +389,11 @@ pub fn run() {
                     if url.scheme() == "file" {
                         if let Ok(path) = url.to_file_path() {
                             if path.is_file() && is_markdown_file(&path) {
-                                let _ = app.emit_to("main", "open-file", path.to_string_lossy().into_owned());
+                                let _ = app.emit_to(
+                                    "main",
+                                    "open-file",
+                                    path.to_string_lossy().into_owned(),
+                                );
                             }
                         }
                     }
@@ -428,7 +436,9 @@ mod tests {
     #[test]
     fn is_markdown_file_handles_nested_paths() {
         assert!(is_markdown_file(&PathBuf::from("/home/user/docs/notes.md")));
-        assert!(!is_markdown_file(&PathBuf::from("/home/user/docs/notes.rs")));
+        assert!(!is_markdown_file(&PathBuf::from(
+            "/home/user/docs/notes.rs"
+        )));
     }
 
     #[test]
@@ -444,7 +454,7 @@ mod tests {
         let mut f = fs::File::create(&file_path).unwrap();
         f.write_all(b"# Hello\nWorld").unwrap();
 
-        let result = read_file(file_path.to_string_lossy().into_owned());
+        let result = read_file(&file_path.to_string_lossy());
         assert!(result.is_ok());
         let fc = result.unwrap();
         assert_eq!(fc.content, "# Hello\nWorld");
@@ -462,7 +472,7 @@ mod tests {
         let mut f = fs::File::create(&file_path).unwrap();
         f.write_all(b"hello").unwrap();
 
-        let result = read_file(file_path.to_string_lossy().into_owned());
+        let result = read_file(&file_path.to_string_lossy());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Only .md and .markdown"));
 
@@ -471,7 +481,7 @@ mod tests {
 
     #[test]
     fn read_file_errors_for_nonexistent() {
-        let result = read_file("/tmp/nonexistent_peep_test_file.md".into());
+        let result = read_file("/tmp/nonexistent_peep_test_file.md");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Cannot resolve path"));
     }
@@ -484,7 +494,7 @@ mod tests {
         let mut f = fs::File::create(&file_path).unwrap();
         f.write_all(b"test").unwrap();
 
-        let result = read_file(file_path.to_string_lossy().into_owned()).unwrap();
+        let result = read_file(&file_path.to_string_lossy()).unwrap();
         // Canonical path should be absolute
         assert!(PathBuf::from(&result.path).is_absolute());
 
