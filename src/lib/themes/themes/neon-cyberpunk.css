@@ -2,7 +2,8 @@
 	.app {
 		background: #0a0014;
 		color: #e0d4ff;
-		font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+		font-family: ui-monospace, "SF Mono", "Fira Code", "Cascadia Code", "Menlo",
+			monospace;
 		--md-accent: #ff00ff;
 	}
 

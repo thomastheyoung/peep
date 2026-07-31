@@ -151,7 +151,7 @@
 	}
 
 	.markdown-body code {
-		font-family: "Courier New", Courier, monospace;
+		font-family: "Courier New", Courier, ui-monospace, "SF Mono", "Menlo", monospace;
 		background: #f2efeb;
 		border-radius: 3px;
 		color: #c62828;
@@ -167,7 +167,7 @@
 	}
 
 	.markdown-body pre code {
-		font-family: "Courier New", Courier, monospace;
+		font-family: "Courier New", Courier, ui-monospace, "SF Mono", "Menlo", monospace;
 		color: #2c2c2c;
 		background: none;
 	}

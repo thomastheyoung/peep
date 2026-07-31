@@ -108,7 +108,7 @@
   }
 
   .markdown-body code {
-    font-family: "Space Mono", "Courier New", monospace;
+    font-family: "Space Mono", ui-monospace, "SF Mono", "Menlo", monospace;
     background: #ffe0cc;
     color: #d84315;
     border: none;
@@ -127,7 +127,7 @@
   }
 
   .markdown-body pre code {
-    font-family: "Space Mono", "Courier New", monospace;
+    font-family: "Space Mono", ui-monospace, "SF Mono", "Menlo", monospace;
     background: none;
     border: none;
     padding: 0;

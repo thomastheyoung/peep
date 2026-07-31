@@ -181,7 +181,10 @@
 		overflow-x: auto;
 		overscroll-behavior-x: contain;
 		font-size: 0.85em;
-		line-height: 1.5;
+		/* Tight enough that box-drawing verticals (│ ├ ┤) meet across rows —
+		   surplus line-height becomes half-leading above and below each glyph,
+		   which visibly breaks the borders of ASCII diagrams. */
+		line-height: 1.35;
 		box-shadow: none;
 		border: none;
 		transform: none;
