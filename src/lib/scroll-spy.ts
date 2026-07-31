@@ -3,13 +3,23 @@ import type { Action } from "svelte/action";
 const HEADING_SELECTOR = "h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]";
 const SCROLL_OFFSET = 80;
 
-export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
+interface ScrollSpyParams {
+	/** Identity of the document being spied on; changing it resets dedup state. */
+	key: string;
+	onActiveChange: (id: string | null) => void;
+}
+
+export const scrollSpy: Action<HTMLElement, ScrollSpyParams> = (
 	node,
-	onActiveChange,
+	params,
 ) => {
 	let ticking = false;
 	let currentId: string | null = null;
-	let callback = onActiveChange;
+	let callback = params.onActiveChange;
+	// The node this action is attached to never unmounts, so `currentId` would
+	// otherwise persist across tab switches and suppress the first callback for
+	// a new document that happens to share a heading id.
+	let prevKey = params.key;
 
 	function check() {
 		const article = node.querySelector("article.markdown-body");
@@ -58,8 +68,14 @@ export const scrollSpy: Action<HTMLElement, (id: string | null) => void> = (
 	requestAnimationFrame(check);
 
 	return {
-		update(newCallback) {
-			callback = newCallback;
+		// Runs on every re-render (the caller passes a fresh object literal), so
+		// this must stay idempotent — only reset when the key actually changes.
+		update(next) {
+			callback = next.onActiveChange;
+			if (next.key !== prevKey) {
+				prevKey = next.key;
+				currentId = null;
+			}
 		},
 		destroy() {
 			node.removeEventListener("scroll", onScroll);

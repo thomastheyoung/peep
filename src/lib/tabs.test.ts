@@ -45,6 +45,23 @@ describe("tabs", () => {
 			expect(tabs.activeIndex).toBe(0);
 		});
 
+		it("preserves scroll when reopening an already-open file", () => {
+			tabs.add(makeTab("/a.md"));
+			tabs.items[0]!.scroll.top = 750;
+			tabs.add(makeTab("/b.md"));
+			tabs.add(makeTab("/a.md")); // dedup path — bypasses activate()
+			expect(tabs.active?.scroll.top).toBe(750);
+		});
+
+		it("starts with a zeroed scroll position", () => {
+			tabs.add(makeTab("/a.md"));
+			expect(tabs.items[0]!.scroll).toEqual({
+				top: 0,
+				headingId: null,
+				headingOffset: 0,
+			});
+		});
+
 		it("cycles through 8 colors", () => {
 			const colors = new Set<string>();
 			for (let i = 0; i < 9; i++) {
@@ -96,6 +113,26 @@ describe("tabs", () => {
 			tabs.close(5);
 			expect(tabs.items).toHaveLength(1);
 		});
+
+		it("changes the active tab without changing activeIndex", () => {
+			// Closing the active tab at index 0 leaves activeIndex at 0 while a
+			// different document becomes active — scroll restore must key on tab
+			// identity, not on activeIndex, or it will not fire here.
+			tabs.add(makeTab("/a.md"));
+			tabs.add(makeTab("/b.md"));
+			tabs.activate(0);
+			tabs.close(0);
+			expect(tabs.activeIndex).toBe(0);
+			expect(tabs.active?.path).toBe("/b.md");
+		});
+
+		it("keeps other tabs' scroll positions intact", () => {
+			tabs.add(makeTab("/a.md"));
+			tabs.add(makeTab("/b.md"));
+			tabs.items[1]!.scroll.top = 420;
+			tabs.close(0);
+			expect(tabs.items[0]!.scroll.top).toBe(420);
+		});
 	});
 
 	describe("activate", () => {
@@ -127,6 +164,17 @@ describe("tabs", () => {
 			tabs.add(makeTab("/a.md"));
 			tabs.update("/unknown.md", "x", "y");
 			expect(tabs.items[0]!.content).toBe("# /a.md");
+		});
+
+		it("preserves scroll position across a live reload", () => {
+			tabs.add(makeTab("/a.md"));
+			tabs.items[0]!.scroll = { top: 900, headingId: "intro", headingOffset: 850 };
+			tabs.update("/a.md", "new content", "<p>new</p>", []);
+			expect(tabs.items[0]!.scroll).toEqual({
+				top: 900,
+				headingId: "intro",
+				headingOffset: 850,
+			});
 		});
 	});
 });

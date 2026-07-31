@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
-	import { tabs } from "$lib/tabs.svelte";
+	import { tick, untrack } from "svelte";
+	import { tabs, type Tab } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
 	import { preferences as prefs } from "$lib/preferences.svelte";
 	import { commandPalette as palette } from "$lib/command-palette.svelte";
@@ -26,6 +27,123 @@
 	$effect(() => {
 		prefs.theme.css; // track theme changes
 		if (articleEl) rerenderMermaid(articleEl);
+	});
+
+	/* ---------------------------------------------------------------
+	   Per-tab scroll position
+
+	   There is one scroll container for every tab — switching tabs only swaps
+	   its innerHTML, so `scrollTop` would otherwise carry over between
+	   documents. Position is saved per tab on scroll and restored whenever the
+	   displayed document changes.
+
+	   All measurements use `offsetTop`/`scrollTop`, never `getBoundingClientRect()`:
+	   the container carries `style:zoom`, and rects are in zoomed viewport
+	   coordinates while offsets and scrollTop are unzoomed. Mixing the two
+	   breaks restore at any zoom level other than 1.
+	   --------------------------------------------------------------- */
+
+	const HEADING_SELECTOR = "h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]";
+	const ANCHOR_DEBOUNCE_MS = 150;
+
+	/**
+	 * Which tab the container is currently *displaying* — deliberately not
+	 * `$state`, and deliberately not the same thing as `tabs.active`. Scroll
+	 * events arriving mid-switch (including the ones a programmatic restore
+	 * emits) are saved against this, so a late event writes the position it
+	 * actually describes rather than corrupting the incoming tab.
+	 */
+	let displayedTab: Tab | undefined;
+	/** Tab the most recent scroll event belonged to; the pending frame saves to this. */
+	let pendingTab: Tab | undefined;
+	let scrollRaf = false;
+	let anchorTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/** Nearest heading at or above the current scroll offset. */
+	function findAnchor(article: HTMLElement, container: HTMLElement): HTMLElement | null {
+		const headings = article.querySelectorAll<HTMLElement>(HEADING_SELECTOR);
+		let anchor: HTMLElement | null = null;
+		for (const h of headings) {
+			if (h.offsetTop <= container.scrollTop) anchor = h;
+			else break;
+		}
+		return anchor;
+	}
+
+	function handleScroll() {
+		if (!displayedTab) return;
+		// Record the *latest* target even when a frame is already pending: the
+		// coalesced frame must save to the tab that is displayed now, not to
+		// whichever event happened to win the race to schedule it.
+		pendingTab = displayedTab;
+		clearTimeout(anchorTimer);
+		if (scrollRaf) return;
+		scrollRaf = true;
+		requestAnimationFrame(() => {
+			scrollRaf = false;
+			const target = pendingTab;
+			if (!contentEl || !target || target !== displayedTab) return;
+			target.scroll.top = contentEl.scrollTop;
+
+			// The anchor costs a layout read per heading, so it lags the cheap
+			// pixel save. Worst case the anchor is one heading stale, and
+			// `top` is always current.
+			anchorTimer = setTimeout(() => {
+				if (!contentEl || !articleEl || target !== displayedTab) return;
+				const anchor = findAnchor(articleEl, contentEl);
+				target.scroll.headingId = anchor?.id ?? null;
+				target.scroll.headingOffset = anchor?.offsetTop ?? 0;
+			}, ANCHOR_DEBOUNCE_MS);
+		});
+	}
+
+	function applyRestore(tab: Tab, container: HTMLElement) {
+		const { top, headingId, headingOffset } = tab.scroll;
+		let target = top;
+		if (headingId) {
+			const anchor = container.querySelector<HTMLElement>(`#${CSS.escape(headingId)}`);
+			// Re-anchor to where the heading sits *now*, keeping the saved
+			// distance from it. Immune to content above it having grown.
+			if (anchor) target = anchor.offsetTop - headingOffset + top;
+		}
+		const max = Math.max(0, container.scrollHeight - container.clientHeight);
+		// Plain assignment: per CSSOM View, performing a scroll aborts any
+		// ongoing smooth scroll (e.g. a TOC click) on the same box.
+		container.scrollTop = Math.max(0, Math.min(max, target));
+	}
+
+	// Attached explicitly rather than via `onscroll` because Svelte only marks
+	// touchstart/touchmove as passive, and scroll-spy attaches a passive
+	// listener to this same element.
+	$effect(() => {
+		const container = contentEl;
+		if (!container) return;
+		container.addEventListener("scroll", handleScroll, { passive: true });
+		return () => container.removeEventListener("scroll", handleScroll);
+	});
+
+	// Tracks both tab identity and rendered content, so this covers switching
+	// tabs *and* a live reload replacing the active tab's DOM in place.
+	$effect(() => {
+		const tab = tabs.active;
+		tab?.path;
+		tab?.rendered;
+
+		untrack(() => {
+			// Retarget before any write so scroll events emitted by the restore
+			// below are attributed to the incoming tab, and a pending anchor
+			// computation for the outgoing tab is discarded.
+			clearTimeout(anchorTimer);
+			displayedTab = tab;
+			pendingTab = tab;
+			if (!tab || !contentEl) return;
+			const container = contentEl;
+			tick().then(() => {
+				// Rapid switches queue multiple restores; only the newest wins.
+				if (tabs.active !== tab) return;
+				applyRestore(tab, container);
+			});
+		});
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -138,7 +256,10 @@
 		class:no-scroll={!tabs.active}
 		style:zoom={prefs.zoomLevel}
 		bind:this={contentEl}
-		use:scrollSpy={(id) => toc.setActiveId(id)}
+		use:scrollSpy={{
+			key: tabs.active?.path ?? "",
+			onActiveChange: (id) => toc.setActiveId(id),
+		}}
 	>
 		{#if tabs.active}
 			<article class="markdown-body" use:copyCode use:renderMermaid bind:this={articleEl}>
@@ -183,6 +304,11 @@
 		overflow-x: hidden;
 		overscroll-behavior-y: contain;
 		scrollbar-gutter: stable;
+		/* `contain: content` implies `contain: layout`, which makes this element
+		   a containing block for absolutely-positioned descendants and therefore
+		   the `offsetParent` of the headings inside. Per-tab scroll restore
+		   measures heading `offsetTop` against this element — removing this
+		   would silently reparent those offsets to <body> and break restore. */
 		contain: content;
 	}
 
