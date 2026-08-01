@@ -1,0 +1,115 @@
+name: release
+
+# Tag push is the trigger: the tag is an immutable record of exactly what
+# shipped. `release: published` would be backwards, since tauri-action's job is
+# to *create* the release. workflow_dispatch is here only to re-run a single
+# failed platform without inventing a throwaway tag.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+
+    strategy:
+      # All three jobs write into one release. If one platform fails, let the
+      # others finish rather than leaving the manifest partially written.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin'
+          # Not ubuntu-latest: glibc is forward-incompatible, so an AppImage
+          # built on 24.04 will not run on 22.04.
+          - platform: ubuntu-22.04
+            args: ''
+            rust-targets: ''
+          - platform: windows-latest
+            args: ''
+            rust-targets: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # Must follow pnpm setup: `cache: pnpm` needs pnpm on PATH.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: ${{ matrix.platform }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Fail loudly if the tag and package.json disagree. tauri.conf.json
+      # inherits its version from package.json and is what the updater compares
+      # against the manifest, so a mismatch would ship an update that clients
+      # either never see or immediately re-offer.
+      - name: Verify tag matches package.json version
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          pkg_version=$(node -p "require('./package.json').version")
+          if [ "${TAG_NAME#v}" != "$pkg_version" ]; then
+            echo "Tag ${TAG_NAME} does not match package.json version ${pkg_version}" >&2
+            exit 1
+          fi
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing and notarization. These no-op while unset, so buying
+          # an Apple Developer membership later makes the next release
+          # notarized with no change to this file.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          # Always pass tagName so the generated latest.json pins versioned
+          # asset URLs rather than /releases/latest/download/ paths.
+          tagName: ${{ github.ref_name }}
+          releaseName: 'peep __VERSION__'
+          releaseBody: 'See the assets below to download and install this version.'
+          # Draft until you publish: users never see a half-populated release,
+          # and latest.json is unreachable at /releases/latest/download/ until
+          # all three platforms have uploaded.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

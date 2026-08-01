@@ -14,7 +14,8 @@
     "build-storybook": "storybook build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "release": "pnpm version minor && git push --follow-tags"
   },
   "license": "MIT",
   "dependencies": {
@@ -26,6 +27,8 @@
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "gemoji": "^8.1.0",
     "katex": "^0.16.47",
     "marked": "^17.0.6",

@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # `cache: pnpm` requires pnpm to already be on PATH, so this must come
+      # after the step above.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+  rust:
+    # Builds on every platform we ship. The macOS-only `default_viewer` module
+    # and its CoreServices FFI have never been compiled for Windows or Linux,
+    # so this job is what proves the cfg gating is correct — before a release
+    # tag rather than after one leaves a half-populated draft behind.
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: ${{ matrix.platform }}
+
+      # The frontend build output must exist because tauri.conf.json points
+      # `frontendDist` at ../build, and the Rust build validates it.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Cargo.toml sets clippy pedantic + nursery to warn; -D promotes them to
+      # errors so drift cannot accumulate.
+      - name: Clippy
+        run: cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings

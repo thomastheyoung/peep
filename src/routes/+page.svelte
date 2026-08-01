@@ -6,6 +6,7 @@
 	import type { FileContent } from "$lib/types";
 	import { preferences as prefs } from "$lib/preferences.svelte";
 	import { commandPalette as palette } from "$lib/command-palette.svelte";
+	import { updater } from "$lib/updater.svelte";
 	import { buildCommands } from "$lib/commands";
 	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
 	import { copyCode } from "$lib/copy-code";
@@ -146,6 +147,11 @@
 		});
 	});
 
+	function openPalette() {
+		prefs.closePanel();
+		palette.show(buildCommands({ prefs, tabs, updater, openFileDialog, closeTab }));
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		const mod = e.metaKey || e.ctrlKey;
 		if (mod && e.key === "k") {
@@ -153,8 +159,7 @@
 			if (palette.open) {
 				palette.close();
 			} else {
-				prefs.closePanel();
-				palette.show(buildCommands({ prefs, tabs, openFileDialog, closeTab }));
+				openPalette();
 			}
 			return;
 		}
@@ -214,16 +219,31 @@
 			}
 		});
 
+		// Native "Check for Updates…" menu item. Opens the palette so the user
+		// gets feedback — unlike the silent launch check below.
+		const unlistenCheckUpdates = listen("check-updates", () => {
+			updater.check().finally(openPalette);
+		});
+
 		invoke<string[]>("get_initial_files").then(async (files) => {
 			for (const path of files) {
 				await openFile(path);
 			}
 		});
 
+		// Deferred so the launch check never competes with first paint:
+		// get_initial_files -> openFile -> shiki init all want the main thread.
+		// `checkOnce` latches internally, so an HMR re-run won't re-check.
+		const autoCheckTimer = setTimeout(() => {
+			updater.checkOnce().catch(() => {});
+		}, 3000);
+
 		return () => {
 			unlistenChanged.then((fn) => fn());
 			unlistenOpen.then((fn) => fn());
 			unlistenZoom.then((fn) => fn());
+			unlistenCheckUpdates.then((fn) => fn());
+			clearTimeout(autoCheckTimer);
 			clearAllTimers();
 		};
 	});

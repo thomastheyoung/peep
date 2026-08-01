@@ -261,12 +261,25 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
 
 /// Build the native application menu (App, Edit, View submenus).
 fn build_menu(handle: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    // No accelerator: there is no standard shortcut for this. The explicit
+    // `None::<&str>` is required because the other items pass `Some(..)`, so
+    // the generic parameter cannot be inferred here.
+    let check_updates = MenuItem::with_id(
+        handle,
+        "check_updates",
+        "Check for Updates…",
+        true,
+        None::<&str>,
+    )?;
+
     let app_menu = Submenu::with_items(
         handle,
         "peep",
         true,
         &[
             &PredefinedMenuItem::about(handle, None, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &check_updates,
             &PredefinedMenuItem::separator(handle)?,
             &PredefinedMenuItem::services(handle, None)?,
             &PredefinedMenuItem::separator(handle)?,
@@ -320,6 +333,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             // args[0] is the binary path; real file args start at [1]
             let file_args: Vec<String> = args.iter().skip(1).cloned().collect();
@@ -361,6 +376,11 @@ pub fn run() {
                     }
                     "zoom_reset" => {
                         let _ = app.emit("zoom", "reset");
+                    }
+                    // The update state machine lives in the frontend; this
+                    // just forwards the user's intent to it.
+                    "check_updates" => {
+                        let _ = app.emit("check-updates", ());
                     }
                     _ => {}
                 }

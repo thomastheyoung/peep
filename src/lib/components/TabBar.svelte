@@ -1,12 +1,59 @@
 <script lang="ts">
 	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import { tabs } from "$lib/tabs.svelte";
+	import { updater } from "$lib/updater.svelte";
 
 	interface Props {
 		onclose: (index: number) => void;
 	}
 
 	let { onclose }: Props = $props();
+
+	/**
+	 * `checking` is deliberately excluded: a pill that appears for a few seconds
+	 * on every launch would contradict the silent background check.
+	 */
+	const showUpdateBadge = $derived(
+		updater.status === "available" ||
+			updater.status === "downloading" ||
+			updater.status === "ready" ||
+			updater.status === "error"
+	);
+
+	/**
+	 * Restarting quits the app, so it takes a second click to confirm rather
+	 * than happening instantly on a stray click in the title bar. Reset if the
+	 * download state changes underneath it.
+	 */
+	let confirmingRestart = $state(false);
+	$effect(() => {
+		if (updater.status !== "ready") confirmingRestart = false;
+	});
+
+	const badgeLabel = $derived.by(() => {
+		switch (updater.status) {
+			case "available":
+				return `Update ${updater.version ?? ""}`.trim();
+			case "downloading":
+				return updater.progress == null
+					? "Downloading"
+					: `Downloading ${Math.round(updater.progress * 100)}%`;
+			case "ready":
+				return confirmingRestart ? "Restart now?" : "Restart to update";
+			default:
+				return "Update failed";
+		}
+	});
+
+	function handleUpdateClick() {
+		if (updater.status === "ready" && !confirmingRestart) {
+			confirmingRestart = true;
+			return;
+		}
+		updater.activate().catch(() => {
+			// Already recorded in updater.errorMessage and surfaced on the badge.
+		});
+	}
 	const appWindow = getCurrentWindow();
 
 	function handleDrag(e: MouseEvent) {
@@ -71,9 +118,122 @@
 			{/each}
 		</div>
 	{/if}
+	{#if showUpdateBadge}
+		<!-- Must be a <button>: handleDrag only exempts `.tab, button`, so any
+		     other element would start a window drag instead of firing onclick. -->
+		<button
+			class="update-badge"
+			class:update-ready={updater.status === "ready"}
+			class:update-error={updater.status === "error"}
+			class:update-busy={updater.status === "downloading"}
+			type="button"
+			disabled={updater.status === "downloading"}
+			title={updater.errorMessage ?? undefined}
+			onclick={handleUpdateClick}
+			onblur={() => (confirmingRestart = false)}
+		>
+			{badgeLabel}
+		</button>
+	{/if}
 </header>
 
 <style>
+	/*
+	 * `margin-left: auto` rather than relying on `.tabs { flex: 1 }`: that
+	 * element lives inside `{#if tabs.items.length > 0}`, so with no tabs open
+	 * there is no flex spacer and the badge would sit next to the traffic
+	 * lights instead of the trailing edge.
+	 */
+	.update-badge {
+		margin-left: auto;
+		margin-right: 10px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 3px 9px;
+		font-family: inherit;
+		font-size: var(--chrome-font-size-xs);
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+		color: var(--chrome-text);
+		background: var(--chrome-surface);
+		border: var(--chrome-border-width) solid var(--chrome-border);
+		border-radius: var(--chrome-radius);
+		box-shadow: 2px 2px 0 var(--chrome-border);
+		transition:
+			background 0.15s ease,
+			color 0.15s ease,
+			box-shadow 0.15s ease,
+			transform 0.1s ease;
+	}
+
+	.update-badge::before {
+		content: "";
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: currentColor;
+		flex-shrink: 0;
+	}
+
+	.update-badge:hover:not(:disabled) {
+		color: var(--chrome-text-active);
+		background: var(--chrome-bg-hover);
+		transform: translate(-1px, -1px);
+		box-shadow: 3px 3px 0 var(--chrome-border);
+	}
+
+	/* Progress is the affordance while downloading; clicking does nothing. */
+	.update-busy {
+		cursor: default;
+		opacity: 0.75;
+	}
+
+	.update-busy::before {
+		animation: update-pulse 1.4s ease-in-out infinite;
+	}
+
+	@keyframes update-pulse {
+		50% {
+			opacity: 0.25;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.update-busy::before {
+			animation: none;
+		}
+	}
+
+	.update-badge:active:not(:disabled) {
+		transform: translate(1px, 1px);
+		box-shadow: 1px 1px 0 var(--chrome-border);
+	}
+
+	.update-badge:focus-visible {
+		outline: 2px solid var(--chrome-accent);
+		outline-offset: 2px;
+	}
+
+	.update-ready {
+		color: var(--chrome-bg);
+		background: var(--chrome-accent);
+		border-color: color-mix(in srgb, var(--chrome-accent) 80%, #000);
+		box-shadow: 2px 2px 0 color-mix(in srgb, var(--chrome-accent) 80%, #000);
+	}
+
+	/*
+	 * Dashed border rather than a red fill: `--chrome-danger` is referenced by
+	 * `.tab-close` but defined in no theme, and adding a second consumer would
+	 * spread a hardcoded fallback across all 22 themes.
+	 */
+	.update-error {
+		border-style: dashed;
+		box-shadow: none;
+	}
+
 	.titlebar {
 		display: flex;
 		align-items: center;

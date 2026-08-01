@@ -43,7 +43,36 @@ function mockRangeSetting(overrides: Partial<RangeSetting> = {}): RangeSetting {
 	};
 }
 
-function mockContext(settings: SettingDef[] = [], tabCount = 0) {
+/**
+ * A mutable stand-in for the updater singleton.
+ *
+ * Returned as a plain object so tests can reassign `status` after building the
+ * commands — that is what proves the palette command reads through getters
+ * rather than snapshotting values.
+ */
+function mockUpdater(overrides: Record<string, unknown> = {}) {
+	return {
+		status: "idle",
+		version: null,
+		notes: null,
+		errorMessage: null,
+		progress: null,
+		busy: false,
+		check: vi.fn(),
+		checkOnce: vi.fn(),
+		install: vi.fn(),
+		restart: vi.fn(),
+		activate: vi.fn(),
+		dismiss: vi.fn(),
+		...overrides,
+	};
+}
+
+function mockContext(
+	settings: SettingDef[] = [],
+	tabCount = 0,
+	updater: Record<string, unknown> = mockUpdater()
+) {
 	const tabItems = Array.from({ length: tabCount }, (_, i) => ({
 		path: `/${i}.md`,
 		filename: `${i}.md`,
@@ -53,6 +82,7 @@ function mockContext(settings: SettingDef[] = [], tabCount = 0) {
 	}));
 
 	return {
+		updater: updater as any,
 		prefs: {
 			settings,
 			openPanel: vi.fn(),
@@ -217,6 +247,101 @@ describe("buildCommands", () => {
 			expect(children).toHaveLength(3);
 			expect(children[0]!.detail).toBe("✓"); // activeIndex is 0
 			expect(children[1]!.detail).toBeUndefined();
+		});
+	});
+
+	describe("check-for-updates", () => {
+		function updateCommand(updater: Record<string, unknown>) {
+			const cmd = buildCommands(mockContext([], 0, updater)).find(
+				(c) => c.id === "check-for-updates"
+			);
+			if (!cmd) throw new Error("expected check-for-updates command");
+			return cmd;
+		}
+
+		// Membership is fixed when the palette snapshots the array, so the
+		// command must never be pushed conditionally. If someone wraps it in an
+		// `if`, this fails.
+		it.each([
+			"idle",
+			"checking",
+			"up-to-date",
+			"available",
+			"downloading",
+			"ready",
+			"relaunching",
+			"error",
+		])("is present when status is %s", (status) => {
+			expect(updateCommand(mockUpdater({ status }))).toBeDefined();
+		});
+
+		// Guards the `previewThemeId` split in CommandPalette, which treats a
+		// two-part id as a theme id.
+		it("uses an id with no colon", () => {
+			expect(updateCommand(mockUpdater()).id).not.toContain(":");
+		});
+
+		it("labels by status", () => {
+			expect(updateCommand(mockUpdater()).label).toBe("Check for updates");
+			expect(updateCommand(mockUpdater({ status: "checking" })).label).toBe(
+				"Checking for updates…"
+			);
+			expect(
+				updateCommand(mockUpdater({ status: "available", version: "1.2.3" })).label
+			).toBe("Download update 1.2.3");
+			expect(updateCommand(mockUpdater({ status: "ready" })).label).toBe(
+				"Restart to finish update"
+			);
+		});
+
+		it("details by status", () => {
+			expect(updateCommand(mockUpdater({ status: "up-to-date" })).detail).toBe("Up to date");
+			expect(
+				updateCommand(mockUpdater({ status: "downloading", progress: 0.5 })).detail
+			).toBe("50%");
+			// Unknown Content-Length must not render as NaN%.
+			expect(
+				updateCommand(mockUpdater({ status: "downloading", progress: null })).detail
+			).toBe("…");
+			expect(updateCommand(mockUpdater({ status: "error" })).detail).toBe("Failed");
+			expect(updateCommand(mockUpdater()).detail).toBeUndefined();
+		});
+
+		/*
+		 * The highest-value test here. `label`/`detail` must be getters so the
+		 * palette row tracks state that changes after the snapshot was taken.
+		 * Replacing them with plain values would compile, typecheck, and pass
+		 * every other test while silently producing a permanently stale row.
+		 */
+		it("reads status through getters, not a snapshot", () => {
+			const updater = mockUpdater();
+			const cmd = updateCommand(updater);
+			expect(cmd.label).toBe("Check for updates");
+
+			updater.status = "ready";
+			expect(cmd.label).toBe("Restart to finish update");
+
+			updater.status = "downloading";
+			updater.progress = 0.42;
+			expect(cmd.detail).toBe("42%");
+		});
+
+		/*
+		 * Status dispatch lives on the updater singleton, not here, so the
+		 * titlebar badge and this command cannot disagree about what a click
+		 * means. Re-inlining the switch would silently reintroduce that drift.
+		 */
+		it("delegates to activate rather than dispatching on status itself", async () => {
+			const updater = mockUpdater({ status: "available" });
+			const cmd = updateCommand(updater);
+			if (cmd.kind === "parent") throw new Error("expected action");
+
+			await cmd.action();
+
+			expect(updater.activate).toHaveBeenCalledOnce();
+			expect(updater.install).not.toHaveBeenCalled();
+			expect(updater.check).not.toHaveBeenCalled();
+			expect(updater.restart).not.toHaveBeenCalled();
 		});
 	});
 });
