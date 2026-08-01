@@ -1,0 +1,22 @@
+<!--
+  In the app these rules come from the `:global` block in `+page.svelte`, which
+  no story mounts. Without them components render without a box-sizing reset and
+  with default body margin — cramped layouts and truncated labels that look like
+  component bugs but are not.
+-->
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-family: var(--chrome-font);
+  }
+</style>

@@ -21,8 +21,11 @@ pnpm tauri build
 # Type checking
 pnpm check
 
-# Storybook (theme/tab explorations)
+# Storybook (shared components, official themes, design explorations)
 pnpm storybook
+
+# Static Storybook build
+pnpm build-storybook
 ```
 
 ## Architecture
@@ -49,10 +52,17 @@ pnpm storybook
   **The palette snapshots this array when it opens and never rebuilds it while open.** A command whose text must track changing state has to declare `label`/`detail` as *getters* — Svelte's `$state` proxy passes accessors through to `Reflect.get` rather than caching them, so the read happens at template render time and registers as a reactive dependency. This makes a command's contents reactive but never its membership: presence is fixed at snapshot time, so state-dependent commands (`check-for-updates`) are pushed unconditionally and encode their state in the label instead of being conditionally included. Command ids must also avoid colons — `CommandPalette.svelte` parses two-part ids as theme ids
 - `src/lib/command-palette.svelte.ts` — reactive state for the command palette: open/close, query filtering, selection index, navigation stack for drill-in levels. Module-level singleton exported as `commandPalette`
 - `src/lib/copy-code.ts` — Svelte action that adds copy-to-clipboard buttons to `<pre>` blocks in rendered markdown. Uses inline SVG icons with animated check feedback
+- `src/lib/mermaid.ts` — Svelte action that renders Mermaid diagrams in `.mermaid-diagram` elements. Mermaid is lazily imported on first use; the source is stashed in `data-source` so diagrams can re-render when the theme changes
+- `src/lib/scroll-spy.ts` — Svelte action that tracks which heading is in view and reports it via an `onActiveChange` callback (it has no dependency on tab or ToC state). Takes a `key` identifying the document, because the node it attaches to never unmounts — without it the deduped `currentId` would persist across tab switches and swallow the first callback for a new document sharing a heading id
+- `src/lib/toc.ts` — thin facade over `tabs.active` exposing `headings`, `activeId`, and `hasHeadings`, so ToC consumers don't reach into tab state directly
+- `src/lib/files.ts` — file lifecycle helpers shared by the palette, menus, and shortcuts: `openFile`, `openFileDialog`, `closeTab`, and `handleFileChanged` (the debounced live-reload path)
 - `src/lib/updater.svelte.ts` — auto-update state machine (`idle`/`checking`/`up-to-date`/`available`/`downloading`/`ready`/`relaunching`/`error`) over `@tauri-apps/plugin-updater`. Module-level singleton exported as `updater`. Download progress arrives as per-chunk deltas, so bytes are accumulated manually; `progress` returns `null` rather than `NaN` when Content-Length is absent. Checks are deduplicated by an in-flight promise, and the launch check is latched so HMR re-runs of the `+page.svelte` effect cannot re-trigger it. `activate()` is the single definition of what a click means at a given status (check / download / restart / no-op while busy) — both the titlebar badge in `TabBar.svelte` and the palette entry call it, so the two cannot drift. The badge requires a second click to confirm before restarting, since restarting quits the app
 - `src/lib/components/Preferences.svelte` — 2-column settings panel (Cmd+,) with section navigation (appearance, layout, font) and live controls for all settings
 - `src/lib/components/CommandPalette.svelte` — Cmd+K command palette with fuzzy search, keyboard navigation, drill-in sub-lists, and live theme preview via Shadow DOM
-- `src/lib/components/ThemePreview.svelte` — renders a miniature theme preview inside a Shadow DOM to isolate theme CSS from the main document
+- `src/lib/components/ThemePreview.svelte` — renders a miniature theme preview inside a Shadow DOM to isolate theme CSS from the main document. Combines `base.css` + the theme's CSS + preview-only overrides, and caches the result per theme id at module level
+- `src/lib/components/TabBar.svelte` — titlebar and tab strip. Reads the `tabs` singleton directly rather than taking tabs as props, and hosts the updater badge
+- `src/lib/components/EmptyState.svelte` / `EmptyStateStamp.svelte` — the two no-document-open screens; both take `onOpenFile` and a `hidden` flag that drives the fade-out
+- `src/lib/components/FloatingDock.svelte` — floating table-of-contents dock; headings come from the active tab via the `toc` facade in `src/lib/toc.ts`
 - `src/routes/+page.svelte` — the entire app UI: titlebar with draggable region (macOS overlay titlebar), tab bar with keyboard navigation and middle-click close, markdown content area with copy-code action, empty state with open-file prompt. File change events are debounced at 150ms
 
 ### Theme system (`src/lib/themes/`)
@@ -61,6 +71,27 @@ pnpm storybook
 - `theme.svelte.ts` — reactive theme state exported as `themeState`. Theme persistence is handled by `preferences.svelte.ts` via the `md-preferences` localStorage key
 - `themes/*.css` — 22 complete CSS theme files, injected into `<svelte:head>` as raw CSS at runtime
 - `base.css` — structural defaults for `.markdown-body` using `@layer base, theme` (themes override via `@layer theme`)
+
+### Storybook (`.storybook/`, `src/stories/`, `src/lib/storybook/`)
+
+Three top-level sections, ordered by `storySort` in `preview.ts`. Anything unlisted sorts after them, so a new story surfaces at the bottom rather than being silently buried.
+
+| Section | Source | What it is |
+| --- | --- | --- |
+| Shared Components | `src/stories/components/` | Real app components from `$lib/components` |
+| Official Themes | `src/stories/themes/` | Driven by `$lib/themes/registry` — the themes the app actually ships |
+| Design Explorations | `src/stories/explorations/` | 20 markdown, 20 tab, and 27 splash design studies with self-contained styles |
+
+Two constraints make components renderable outside the Tauri webview and outside `+page.svelte`:
+
+- **`.storybook/tauri-mock.ts`** installs a fake `window.__TAURI_INTERNALS__`. `TabBar.svelte` calls `getCurrentWindow()` during init and `Preferences.svelte` calls `invoke()`; both dereference that global (see `@tauri-apps/api/core.js`) and throw in a plain browser before any markup renders. Faking the transport at the Storybook boundary keeps production code free of Storybook-awareness. Unknown commands resolve to `null` rather than rejecting.
+- **`.storybook/preview-head.html` + the `base.css` import in `preview.ts`** supply what `+page.svelte` normally provides. The `box-sizing` reset and body margin live in that component's `:global` block, and the `--chrome-*` tokens live in `base.css` — neither loads when a component is mounted on its own. `staticDirs: ["../static"]` is what makes the `@font-face` URLs (`/fonts/*.woff2`) resolve.
+
+`src/lib/storybook/` holds story-only support code. Nothing in `src/routes` or `$lib/components` imports it, so it stays out of the app bundle — keep it that way:
+
+- `ThemeGallery.svelte` — maps over the theme registry and renders each entry through the real `ThemePreview`. Adding a theme to `registry.ts` adds it to Storybook with no story edit
+- `seed.ts` — seeds the `tabs` singleton through its public API for components that read module-level state instead of props. Stories call it from `beforeEach` and return a cleanup, since a singleton is instantiated once per page load and would otherwise leak between stories
+- `sample-doc.ts` — raw markdown, so theme stories exercise the real `renderMarkdown` pipeline. Distinct from `$lib/sample-markdown`, which is frozen HTML with inline colors and is only suitable for the static design explorations
 
 ### Tauri events (frontend <-> backend)
 - `open-file` (backend -> frontend): path string, triggers file read + tab creation
@@ -88,7 +119,7 @@ pnpm storybook
 - **tauri-plugin-single-instance** (Rust) — ensures one app instance, passes args to existing
 - **tauri-plugin-window-state** (Rust) — persists window geometry
 - **tauri-plugin-updater** / **tauri-plugin-process** — signed self-update and relaunch
-- **Storybook 10** — with `@storybook/sveltekit`, Svelte CSF, vitest, a11y, and docs addons; houses 20 markdown theme explorations and 20 tab style explorations
+- **Storybook 10** — with `@storybook/sveltekit`, Svelte CSF, vitest, a11y, and docs addons. See the Storybook section under Architecture for how stories are organized
 
 ## Release and distribution
 

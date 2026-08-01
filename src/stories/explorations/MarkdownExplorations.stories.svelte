@@ -24,10 +24,16 @@
   import Exploration20 from '$lib/explorations/Exploration20_Handwritten.svelte';
 
   const { Story } = defineMeta({
-    title: 'Design Explorations/Markdown Themes',
+    title: 'Design Explorations/Markdown Theme Studies',
     component: ExplorationWrapper,
     parameters: {
       layout: 'fullscreen',
+      docs: {
+        description: {
+          component:
+            'Frozen design studies with self-contained styles. These are historical proposals, NOT the themes the app ships — see "Official Themes" for those, which render from `$lib/themes/registry`.',
+        },
+      },
     },
   });
 </script>
