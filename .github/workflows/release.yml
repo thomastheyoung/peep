@@ -92,15 +92,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing and notarization. These no-op while unset, so buying
-          # an Apple Developer membership later makes the next release
-          # notarized with no change to this file.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing and notarization are deliberately NOT listed here.
+          #
+          # The bundler gates on `var_os("APPLE_CERTIFICATE").is_some()`
+          # (tauri-bundler/src/bundle/macos/sign.rs), and a GitHub secret that
+          # does not exist still expands to an empty string -- which is
+          # `Some("")`, not `None`. Listing the vars unconditionally therefore
+          # requests signing and then fails importing a zero-byte certificate:
+          # `failed to import keychain certificate`. An empty-string fallback
+          # does not help for the same reason.
+          #
+          # Omitting them entirely lets the bundler ad-hoc sign, which is what
+          # an un-notarized build wants. To notarize: add the secrets, then
+          # re-add these six lines pointing at them.
         with:
           # Always pass tagName so the generated latest.json pins versioned
           # asset URLs rather than /releases/latest/download/ paths.
