@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SettingDef, RangeSetting, PreferencesAPI } from "./preferences.svelte";
 import type { TabsAPI } from "./tabs.svelte";
+import type { UpdaterAPI } from "./updater.svelte";
 
 interface CommandBase {
 	id: string;
@@ -30,6 +31,7 @@ export type Command = ParentCommand | ActionCommand;
 interface CommandContext {
 	prefs: PreferencesAPI;
 	tabs: TabsAPI;
+	updater: UpdaterAPI;
 	openFileDialog: () => void;
 	closeTab: (index: number) => void;
 }
@@ -94,7 +96,7 @@ const ZOOM_SHORTCUTS: { suffix: string; label: string; shortcut: string; delta: 
 ];
 
 export function buildCommands(ctx: CommandContext): Command[] {
-	const { prefs, tabs, openFileDialog, closeTab } = ctx;
+	const { prefs, tabs, updater, openFileDialog, closeTab } = ctx;
 	const commands: Command[] = [];
 
 	// Generate commands from the settings registry
@@ -179,6 +181,55 @@ export function buildCommands(ctx: CommandContext): Command[] {
 			if (isDefault) return;
 			await invoke("set_default_markdown_viewer");
 		},
+	});
+
+	// Updates.
+	//
+	// The palette snapshots this array when it opens, so anything read eagerly
+	// here would be frozen for the lifetime of that snapshot. Reading `updater`
+	// inside a getter defers the read to template render time, where it
+	// registers as a reactive dependency of the row and updates live.
+	//
+	// Push unconditionally: getters make a command's *contents* reactive, never
+	// its membership. Wrapping this in an `if` would freeze presence instead.
+	//
+	// The id must stay constant (it keys the `{#each}`) and contain no colon
+	// (CommandPalette parses two-part ids as theme ids).
+	commands.push({
+		id: "check-for-updates",
+		get label() {
+			switch (updater.status) {
+				case "checking":
+					return "Checking for updates…";
+				case "available":
+					return `Download update ${updater.version ?? ""}`.trim();
+				case "downloading":
+					return "Downloading update…";
+				case "ready":
+					return "Restart to finish update";
+				case "relaunching":
+					return "Restarting…";
+				default:
+					return "Check for updates";
+			}
+		},
+		get detail() {
+			switch (updater.status) {
+				case "up-to-date":
+					return "Up to date";
+				case "downloading": {
+					const p = updater.progress;
+					return p == null ? "…" : `${Math.round(p * 100)}%`;
+				}
+				case "error":
+					return "Failed";
+				default:
+					return undefined;
+			}
+		},
+		keywords: ["update", "upgrade", "version", "release", "install"],
+		kind: 'action',
+		action: () => updater.activate(),
 	});
 
 	// Preferences

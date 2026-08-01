@@ -5,7 +5,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager, RunEvent};
+use tauri::{Emitter, Manager};
+// `RunEvent::Opened` is the macOS `application:openURLs:` bridge; the variant
+// does not exist in the enum on other platforms.
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
 
@@ -224,6 +228,10 @@ fn unwatch_file(path: &str, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+// Off-macOS the body is just `false`, which clippy::nursery flags as
+// const-able. It cannot be: the macOS arm performs CoreServices FFI, and
+// `#[tauri::command]` generates a non-const wrapper around it either way.
+#[cfg_attr(not(target_os = "macos"), allow(clippy::missing_const_for_fn))]
 fn is_default_markdown_viewer() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -261,12 +269,25 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
 
 /// Build the native application menu (App, Edit, View submenus).
 fn build_menu(handle: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    // No accelerator: there is no standard shortcut for this. The explicit
+    // `None::<&str>` is required because the other items pass `Some(..)`, so
+    // the generic parameter cannot be inferred here.
+    let check_updates = MenuItem::with_id(
+        handle,
+        "check_updates",
+        "Check for Updates…",
+        true,
+        None::<&str>,
+    )?;
+
     let app_menu = Submenu::with_items(
         handle,
         "peep",
         true,
         &[
             &PredefinedMenuItem::about(handle, None, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &check_updates,
             &PredefinedMenuItem::separator(handle)?,
             &PredefinedMenuItem::services(handle, None)?,
             &PredefinedMenuItem::separator(handle)?,
@@ -320,6 +341,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             // args[0] is the binary path; real file args start at [1]
             let file_args: Vec<String> = args.iter().skip(1).cloned().collect();
@@ -362,6 +385,11 @@ pub fn run() {
                     "zoom_reset" => {
                         let _ = app.emit("zoom", "reset");
                     }
+                    // The update state machine lives in the frontend; this
+                    // just forwards the user's intent to it.
+                    "check_updates" => {
+                        let _ = app.emit("check-updates", ());
+                    }
                     _ => {}
                 }
             });
@@ -384,6 +412,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            // Finder "Open With" and drag-onto-dock arrive as `Opened` rather
+            // than CLI args. The variant only exists in the enum on macOS;
+            // elsewhere those paths arrive via the single-instance plugin, so
+            // both bindings go unused off-macOS.
+            #[cfg(not(target_os = "macos"))]
+            let (_, _) = (app, event);
+
+            #[cfg(target_os = "macos")]
             if let RunEvent::Opened { urls } = event {
                 for url in urls {
                     if url.scheme() == "file" {
