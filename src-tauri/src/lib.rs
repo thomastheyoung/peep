@@ -5,7 +5,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager, RunEvent};
+use tauri::{Emitter, Manager};
+// `RunEvent::Opened` is the macOS `application:openURLs:` bridge; the variant
+// does not exist in the enum on other platforms.
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
 
@@ -404,6 +408,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            // Finder "Open With" and drag-onto-dock arrive as `Opened` rather
+            // than CLI args. The variant only exists in the enum on macOS;
+            // elsewhere those paths arrive via the single-instance plugin, so
+            // both bindings go unused off-macOS.
+            #[cfg(not(target_os = "macos"))]
+            let (_, _) = (app, event);
+
+            #[cfg(target_os = "macos")]
             if let RunEvent::Opened { urls } = event {
                 for url in urls {
                     if url.scheme() == "file" {
