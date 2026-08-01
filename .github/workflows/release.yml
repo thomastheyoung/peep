@@ -141,12 +141,15 @@ jobs:
         run: |
           set -euo pipefail
           version="${TAG_NAME#v}"
-          gh release download "$TAG_NAME" -p '*.sig' -D sigs --clobber
+          # --repo on every call: this job deliberately skips actions/checkout
+          # (it needs no source), so there is no git remote for gh to infer
+          # the repository from.
+          gh release download "$TAG_NAME" --repo "$REPO" -p '*.sig' -D sigs --clobber
           # Names only. A draft's API asset URLs point at an `untagged-<hash>`
           # path that stops resolving once the release is published, so the
           # manifest must use the permanent /releases/download/<tag>/ form.
           # Names are stable; those URLs are not.
-          gh release view "$TAG_NAME" --json assets \
+          gh release view "$TAG_NAME" --repo "$REPO" --json assets \
             --jq '.assets[].name' > assets.txt
 
           python3 - "$version" "$TAG_NAME" "$REPO" <<'PY'
@@ -191,4 +194,4 @@ jobs:
           print(f"latest.json covers: {sorted(platforms)}")
           PY
 
-          gh release upload "$TAG_NAME" latest.json --clobber
+          gh release upload "$TAG_NAME" --repo "$REPO" latest.json --clobber
