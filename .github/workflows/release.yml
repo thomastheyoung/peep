@@ -106,8 +106,8 @@ jobs:
           # an un-notarized build wants. To notarize: add the secrets, then
           # re-add these six lines pointing at them.
         with:
-          # Always pass tagName so the generated latest.json pins versioned
-          # asset URLs rather than /releases/latest/download/ paths.
+          # Always pass tagName so asset URLs are pinned to this version
+          # rather than /releases/latest/download/ paths.
           tagName: ${{ github.ref_name }}
           releaseName: 'peep __VERSION__'
           releaseBody: 'See the assets below to download and install this version.'
@@ -117,3 +117,78 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          # Disabled because the three matrix jobs race: each one downloads
+          # latest.json, adds its own platform, and re-uploads. Whoever
+          # finishes last wins, so the manifest ends up describing one or two
+          # platforms instead of three -- and a missing platform key means
+          # those clients silently see no update at all. The `manifest` job
+          # below rebuilds it once, after every platform has uploaded.
+          uploadUpdaterJson: false
+
+  # Single writer for latest.json, so there is no race to lose.
+  manifest:
+    needs: release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Build latest.json from the uploaded signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          gh release download "$TAG_NAME" -p '*.sig' -D sigs --clobber
+          # Names only. A draft's API asset URLs point at an `untagged-<hash>`
+          # path that stops resolving once the release is published, so the
+          # manifest must use the permanent /releases/download/<tag>/ form.
+          # Names are stable; those URLs are not.
+          gh release view "$TAG_NAME" --json assets \
+            --jq '.assets[].name' > assets.txt
+
+          python3 - "$version" "$TAG_NAME" "$REPO" <<'PY'
+          import json, os, sys
+
+          version, tag, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+          names = {line.strip() for line in open("assets.txt") if line.strip()}
+          base = f"https://github.com/{repo}/releases/download/{tag}"
+
+          # Map each signature file to its updater platform key. Only bundle
+          # types the updater can actually install belong here.
+          suffixes = {
+              ".app.tar.gz.sig": "darwin-aarch64",
+              ".AppImage.sig": "linux-x86_64",
+              "-setup.exe.sig": "windows-x86_64",
+          }
+
+          platforms = {}
+          for sig_name in sorted(os.listdir("sigs")):
+              for suffix, key in suffixes.items():
+                  if sig_name.endswith(suffix):
+                      artifact = sig_name[:-4]  # drop ".sig"
+                      if artifact not in names:
+                          sys.exit(f"no uploaded asset matching {artifact}")
+                      platforms[key] = {
+                          "signature": open(f"sigs/{sig_name}").read().strip(),
+                          "url": f"{base}/{artifact}",
+                      }
+                      break
+
+          missing = set(suffixes.values()) - platforms.keys()
+          if missing:
+              # Fail loudly: a silently absent key strands that platform's
+              # users on their current version forever.
+              sys.exit(f"latest.json is missing platforms: {sorted(missing)}")
+
+          json.dump({
+              "version": version,
+              "notes": f"See the assets below to download and install this version.",
+              "platforms": platforms,
+          }, open("latest.json", "w"), indent=2)
+          print(f"latest.json covers: {sorted(platforms)}")
+          PY
+
+          gh release upload "$TAG_NAME" latest.json --clobber
