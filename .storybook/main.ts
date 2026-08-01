@@ -6,7 +6,6 @@ const config: StorybookConfig = {
   //   themes/       -> "Official Themes"      (driven by $lib/themes/registry)
   //   explorations/ -> "Design Explorations"  (frozen design studies)
   "stories": [
-    "../src/**/*.mdx",
     "../src/**/*.stories.@(js|ts|svelte)"
   ],
   "addons": [

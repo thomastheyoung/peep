@@ -82,6 +82,8 @@ Three top-level sections, ordered by `storySort` in `preview.ts`. Anything unlis
 | Official Themes | `src/stories/themes/` | Driven by `$lib/themes/registry` — the themes the app actually ships |
 | Design Explorations | `src/stories/explorations/` | 20 markdown, 20 tab, and 27 splash design studies with self-contained styles |
 
+Story files hot-reload, but `main.ts` and `preview.ts` are config and only take effect on a Storybook restart. A `stories` glob that matches nothing is a startup warning rather than an error (`No story files found for the specified pattern`), so it survives both `pnpm check` and `build-storybook` — the dev server log is the only place it shows up.
+
 Two constraints make components renderable outside the Tauri webview and outside `+page.svelte`:
 
 - **`.storybook/tauri-mock.ts`** installs a fake `window.__TAURI_INTERNALS__`. `TabBar.svelte` calls `getCurrentWindow()` during init and `Preferences.svelte` calls `invoke()`; both dereference that global (see `@tauri-apps/api/core.js`) and throw in a plain browser before any markup renders. Faking the transport at the Storybook boundary keeps production code free of Storybook-awareness. Unknown commands resolve to `null` rather than rejecting.
