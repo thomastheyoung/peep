@@ -228,6 +228,10 @@ fn unwatch_file(path: &str, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+// Off-macOS the body is just `false`, which clippy::nursery flags as
+// const-able. It cannot be: the macOS arm performs CoreServices FFI, and
+// `#[tauri::command]` generates a non-const wrapper around it either way.
+#[cfg_attr(not(target_os = "macos"), allow(clippy::missing_const_for_fn))]
 fn is_default_markdown_viewer() -> bool {
     #[cfg(target_os = "macos")]
     {
