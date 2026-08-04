@@ -1,7 +1,10 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 
-// @ts-expect-error process is a nodejs global
+// `process` is a Node global, typed since @types/node was added for
+// `pnpm check:scripts`. The `@ts-expect-error` that used to sit here became a
+// lie at that moment and svelte-check failed on the now-unused directive —
+// which is exactly why it was `@ts-expect-error` and not `@ts-ignore`.
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/

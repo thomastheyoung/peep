@@ -31,8 +31,82 @@ jobs:
       - name: Typecheck
         run: pnpm check
 
+      # `pnpm check` covers src/ only — tsconfig.json excludes *.test.ts and
+      # SvelteKit's inherited `include` never listed ../scripts/**. The
+      # generators under scripts/ produce COMMITTED artifacts (theme-colors.ts,
+      # theme-meta.ts, themes/README.md), so an error there fails on the next
+      # contributor's machine rather than in CI. See markdown-viewer-sg1.
+      - name: Typecheck scripts
+        run: pnpm check:scripts
+
       - name: Test
         run: pnpm test
+
+  # The sanitizer harness is the ONLY verification that touches the real
+  # cascade. jsdom supports neither @layer nor var(), so vitest structurally
+  # cannot assert containment — three real bugs shipped green under vitest and
+  # were caught only here. It runs in its own job rather than inside `frontend`
+  # so a Playwright browser download never gates the fast typecheck/test loop.
+  #
+  # Chromium + WebKit, because the sanitizer's CSSOM rebuild has already been
+  # measured to diverge between them (setProperty with an empty priority is a
+  # no-op for custom properties in WebKit only).
+  sanitizer:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Sanitizer containment (Chromium + WebKit)
+        run: pnpm test:sanitizer
+
+  # Playwright's WebKit is a WebKitGTK build, NOT the WKWebView this app
+  # actually ships on macOS. It shares WebCore, so it catches CSSOM-level
+  # regressions — but not platform-layer behaviour such as elementFromPoint
+  # hit-testing, which is exactly what the overlay/clickjack attacks assert.
+  # macOS is the primary platform, so it gets its own run on a real Apple
+  # WebKit build. Separate from the `rust` matrix deliberately: this must not
+  # queue behind a full cargo compile to report a CSS containment failure.
+  sanitizer-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm exec playwright install --with-deps webkit
+
+      - name: Sanitizer containment (WebKit)
+        run: pnpm test:sanitizer --engine webkit
 
   rust:
     # Builds on every platform we ship. The macOS-only `default_viewer` module

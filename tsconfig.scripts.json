@@ -1,0 +1,39 @@
+{
+	// Deliberately STANDALONE — it does not `extend` ./.svelte-kit/tsconfig.json
+	// like tsconfig.json does. Extending would inherit SvelteKit's `include`,
+	// and adding our own would REPLACE rather than merge it (tsconfig.json's
+	// own trailing comment warns about exactly this), so the app's file set
+	// would silently change as a side effect of type-checking scripts.
+	//
+	// Covers what `pnpm check` structurally cannot: tsconfig.json excludes
+	// *.test.ts, and SvelteKit's inherited `include` lists ../src/**/* but
+	// never ../scripts/**. Verified with `tsc --listFiles` — 24 files, all
+	// under src/. These generators produce COMMITTED artifacts
+	// (theme-colors.ts, theme-meta.ts, themes/README.md), so an error here
+	// surfaces on the next contributor's machine rather than in CI.
+	// See markdown-viewer-sg1; the *.test.ts half of that issue stays open.
+	"compilerOptions": {
+		"target": "ES2023",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		// The scripts run as .ts directly under Node's type-stripping with no
+		// build step, so they import `../src/lib/themes/parse-theme-css.ts`
+		// with an explicit .ts extension — required by Node's ESM resolver.
+		// Legal here only because `noEmit` is set.
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"skipLibCheck": true,
+		"types": ["node"],
+		"lib": ["ES2023"]
+	},
+	// Scoped to .ts only. The two .mjs harnesses are deliberately out: under
+	// `checkJs` their Playwright page-context closures are untyped by nature,
+	// which is where the returns start diminishing.
+	//
+	// parse-theme-css.ts is listed explicitly because the generators import
+	// it — including it here keeps this check hermetic rather than depending
+	// on the app's project graph.
+	"include": ["scripts/**/*.ts", "src/lib/themes/parse-theme-css.ts"]
+}
