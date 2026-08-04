@@ -23,6 +23,13 @@ const COMMAND_RESPONSES: Record<string, unknown> = {
 	unwatch_file: null,
 	get_preferences: null,
 	set_preferences: null,
+	// Unknown commands resolve `null` (see the fallback branch below), and
+	// `loadUserThemes()` in ipc.ts does coerce a non-array response to `[]` —
+	// but that coercion exists as defence in depth, not as something every
+	// story should have to exercise. Mocking the real shape here means
+	// theme.svelte.ts's `discover()` behaves exactly as it would with a
+	// themes directory that legitimately has nothing in it.
+	get_user_themes: [],
 };
 
 export function installTauriMock() {

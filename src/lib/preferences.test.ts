@@ -11,11 +11,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // registry member from the start — matching how a real discover() call
 // would grow the live list.
 vi.mock("./themes/theme.svelte", () => {
-	let id = "github-dark";
-	let allThemes = [
+	const BASELINE_THEMES = [
 		{ id: "github-dark", name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" }, load: () => Promise.resolve("") },
 		{ id: "github-light", name: "GitHub Light", colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" }, load: () => Promise.resolve("") },
 	];
+	let id = "github-dark";
+	let allThemes = [...BASELINE_THEMES];
 	return {
 		themeState: {
 			get id() {
@@ -42,6 +43,22 @@ vi.mock("./themes/theme.svelte", () => {
 		__addMockTheme(themeId: string) {
 			allThemes = [...allThemes, { id: themeId, name: themeId, colors: { bg: "#000", text: "#fff", accent: "#f00" }, load: () => Promise.resolve("") }];
 		},
+		// The mirror image, for reconciliation tests: simulates a theme file
+		// that existed at one discovery and is gone by the next (deleted,
+		// renamed) without touching whatever `id` is currently "active" — a
+		// real discover() doesn't know or care what's active either.
+		__removeMockTheme(themeId: string) {
+			allThemes = allThemes.filter((t) => t.id !== themeId);
+		},
+		// This mock's `id`/`allThemes` are module-factory-scoped closure state,
+		// which — unlike the module-level `$state` this file mocks around — has
+		// no natural per-test reset. Without calling this in `beforeEach`, a
+		// `__removeMockTheme` in one test permanently shrinks `allThemes` for
+		// every test that runs after it in the same file.
+		__resetMockThemes() {
+			id = "github-dark";
+			allThemes = [...BASELINE_THEMES];
+		},
 	};
 });
 
@@ -60,7 +77,16 @@ import { discover } from "./themes/theme.svelte";
 const mockLoad = vi.mocked(loadPreferencesFile);
 const mockSave = vi.mocked(savePreferencesFile);
 const mockDiscover = vi.mocked(discover);
-type MockedThemeModule = { __addMockTheme(themeId: string): void };
+
+// The mocked module's test-only escape hatches (see the vi.mock factory
+// above) aren't part of theme.svelte.ts's real public API, so they aren't in
+// the static import's type — cast once, here, rather than re-deriving this
+// shape at every call site.
+const mockThemeModule = (await import("./themes/theme.svelte")) as unknown as {
+	__addMockTheme(themeId: string): void;
+	__removeMockTheme(themeId: string): void;
+	__resetMockThemes(): void;
+};
 
 describe("preferences", () => {
 	const prefs = preferences;
@@ -70,6 +96,7 @@ describe("preferences", () => {
 		mockLoad.mockReset();
 		mockSave.mockReset();
 		mockDiscover.mockReset();
+		mockThemeModule.__resetMockThemes();
 		// Default: no on-disk file, so existing non-migration tests that don't
 		// call init() are unaffected, and tests that DO call init() get "absent
 		// file" behavior unless they override this.
@@ -530,8 +557,7 @@ describe("preferences", () => {
 			// Register "my-theme" as something discover() would have found, but
 			// don't resolve discover() itself yet — if init() raced ahead of it,
 			// the isThemeId check below would already have run and failed.
-			const themeModule = (await import("./themes/theme.svelte")) as unknown as MockedThemeModule;
-			themeModule.__addMockTheme("my-theme");
+			mockThemeModule.__addMockTheme("my-theme");
 			resolveDiscover({ scanned: true, themes: [] });
 
 			await initPromise;
@@ -609,6 +635,130 @@ describe("preferences", () => {
 		});
 	});
 
+	// markdown-viewer-e9b/y0z: a theme file can be deleted, renamed, or edited
+	// on disk at any point mid-session, not only at launch — the
+	// `user-themes-changed` watcher calls this after every debounced
+	// re-discovery. Uses the SAME fallback-and-persist rule as init()'s
+	// scanned:true-absent branch (see applyResolvedTheme's doc comment).
+	describe("redetectThemes: mid-session reconciliation", () => {
+		it("falls back to default and persists when the active theme is no longer discoverable", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-light");
+			mockSave.mockClear();
+
+			mockThemeModule.__removeMockTheme("github-light");
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			// applyResolvedTheme's fallback branch calls persist(), which is
+			// itself debounced — advance past that debounce to observe the write.
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-dark"); // DEFAULT_THEME_ID in the mock
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-dark");
+		});
+
+		it("does nothing when the active theme still resolves", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			mockSave.mockClear();
+			mockDiscover.mockClear();
+
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			// Still the same theme, and no unnecessary re-apply/persist.
+			expect(prefs.theme.id).toBe("github-light");
+			expect(mockSave).not.toHaveBeenCalled();
+		});
+
+		it("does nothing when the re-scan itself fails (scanned:false) — an already-applied theme is left alone", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			mockSave.mockClear();
+
+			mockDiscover.mockResolvedValue({ scanned: false });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-light"); // unchanged
+			expect(mockSave).not.toHaveBeenCalled();
+		});
+
+		// A launch-time scan failure leaves `themeState.id` on the visual
+		// fallback while `unverifiedThemeId` holds the user's REAL choice. A
+		// later successful redetect must retry that original id — not just
+		// check whether the visual fallback (a builtin, always resolvable)
+		// still works, which would never recover the user's actual theme.
+		it("a successful redetect retries and recovers the id held from a failed launch-time scan", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "was-unresolvable" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark"); // visual fallback only
+
+			// A later, successful redetect: the registry now contains the theme
+			// that couldn't be checked at launch (the scan was merely transient).
+			mockThemeModule.__addMockTheme("was-unresolvable");
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			// The user's real theme is recovered, not left on the fallback.
+			expect(prefs.theme.id).toBe("was-unresolvable");
+		});
+
+		// The other outcome of the same retry: the originally-held id is
+		// genuinely gone even once a scan can finally run. This is the
+		// fallback-and-persist branch, reached via the held id instead of a
+		// freshly-parsed one — the held id must still be released afterward, so
+		// a later unrelated setter call persists the (now-committed) fallback,
+		// not the dead id forever.
+		it("a successful redetect that still can't resolve the held id commits and persists the fallback", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "permanently-gone" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark");
+
+			// Redetect succeeds this time, but "permanently-gone" was never added
+			// — it really doesn't exist.
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-dark");
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(mockSave.mock.calls[0]![0]).theme).toBe("github-dark");
+
+			// The held id is now released — a later write must not resurrect it.
+			mockSave.mockClear();
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(mockSave.mock.calls[0]![0]).theme).toBe("github-dark");
+		});
+	});
+
 	// `parseStoredPreferences` proves stored numerics are finite, not that they
 	// are in range. Nothing validates the file's contents before this, so an
 	// out-of-range value read from disk must be brought into the setters' output
@@ -677,23 +827,34 @@ describe("preferences", () => {
 		// calls persist(), so routing the load path through them would write on
 		// every launch AND interleave those writes with the migration write
 		// queued earlier in init() — the exact ordering hazard queueSave exists
-		// to prevent. This is what pins "clamp without persisting".
+		// to prevent. This is what pins "clamp without persisting" for the
+		// NUMERIC fields specifically.
 		//
-		// Deliberately non-discriminating against the pre-clamp implementation:
-		// that version also never wrote on load. This test guards a property the
-		// change had to PRESERVE, so it passing before and after is correct.
-		it("does not write to disk while normalizing on load", async () => {
+		// This payload has no `theme` key, so — as of markdown-viewer-zm6 (see
+		// the "theme discovery ordering" describe block above) — init() DOES
+		// write once, via applyResolvedTheme's fallback-and-persist branch. That
+		// write is correct and intended, not a normalization leak: it is
+		// pinned by its own tests. What THIS test still guards is that the
+		// numeric fields land in that one write already normalized, rather than
+		// via their own separate setter-driven persist() calls layered on top.
+		it("does not additionally write via the numeric setters while normalizing on load", async () => {
 			vi.useFakeTimers();
 			mockLoad.mockResolvedValue(
 				JSON.stringify({ zoomLevel: 1e6, fontWeight: 9999, letterSpacing: -5, lineHeight: 0 }),
 			);
 
 			await prefs.init();
-			// Well past the 150ms save debounce — a setter-driven persist would
-			// have landed by now.
+			// Well past the 150ms save debounce — an extra setter-driven persist
+			// would have landed by now.
 			await vi.advanceTimersByTimeAsync(300);
 
-			expect(mockSave).not.toHaveBeenCalled();
+			// Exactly the one write from the theme fallback, not one-per-setter.
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.zoomLevel).toBe(3);
+			expect(written.fontWeight).toBe(700);
+			expect(written.letterSpacing).toBe(-0.05);
+			expect(written.lineHeight).toBe(1.2);
 			vi.useRealTimers();
 		});
 	});

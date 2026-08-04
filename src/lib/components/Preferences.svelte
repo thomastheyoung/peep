@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
 	import { preferences as prefs, settingsSections } from "$lib/preferences.svelte";
+	import { importThemeCss } from "$lib/ipc";
+	import { parseThemeCss, slugifyThemeId } from "$lib/themes/parse-theme-css";
+	import { toast } from "$lib/toast.svelte";
 
 	const sectionSettings = $derived(
 		Object.groupBy(prefs.settings, (s) => s.section),
@@ -22,6 +25,88 @@
 	async function setAsDefault() {
 		await invoke("set_default_markdown_viewer");
 		isDefaultViewer = true;
+	}
+
+	// ---------------------------------------------------------------------------
+	// Theme import (file picker + clipboard paste)
+	//
+	// Reading a LOCAL file's content from the frontend needs either a Rust
+	// command or `@tauri-apps/plugin-fs` — this app has neither wired up
+	// (`read_file` explicitly rejects non-markdown, and no fs capability is
+	// granted in src-tauri/capabilities/default.json). A native
+	// `<input type="file">` sidesteps that entirely: Tauri's webview is a real
+	// browser engine, so the standard File API (`file.text()`) works with zero
+	// IPC and zero added capabilities — this is the standard workaround for
+	// exactly this gap in Tauri apps that don't want a full fs allowlist.
+	let fileInputEl: HTMLInputElement | undefined = $state();
+	let importing = $state(false);
+
+	/**
+	 * Derive an id to import under. Prefers the theme's own frontmatter
+	 * `@name` (what the author called it) over the filename, since a user
+	 * theme's id is what gets persisted in preferences — a name survives a
+	 * "Save As" under a different filename, a filename stem does not.
+	 * `import_theme` on the Rust side re-validates and disambiguates
+	 * collisions independently; this is just a reasonable starting point.
+	 */
+	function deriveImportId(css: string, fallback: string): string {
+		const parsed = parseThemeCss(css);
+		return slugifyThemeId(parsed.ok ? parsed.frontmatter.name : fallback);
+	}
+
+	async function importCss(css: string, fallbackId: string) {
+		importing = true;
+		try {
+			const id = deriveImportId(css, fallbackId);
+			await importThemeCss(id, css);
+			// Refresh the live registry so the new theme appears immediately —
+			// redetectThemes() re-runs discover() and reconciles the active
+			// theme; reconciliation is a no-op here since nothing active just
+			// vanished, it's simply the existing re-scan entry point.
+			await prefs.redetectThemes();
+			toast.info("Theme imported.");
+		} catch (err) {
+			console.error("Failed to import theme:", err);
+			toast.error(err instanceof Error ? err.message : "Failed to import theme.");
+		} finally {
+			importing = false;
+		}
+	}
+
+	function openFilePicker() {
+		fileInputEl?.click();
+	}
+
+	async function handleFileInputChange(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		// Reset immediately so selecting the SAME file again still fires
+		// `change` — the browser dedupes on value, not on user intent.
+		input.value = "";
+		if (!file) return;
+
+		try {
+			const css = await file.text();
+			const fallback = file.name.replace(/\.css$/i, "");
+			await importCss(css, fallback);
+		} catch (err) {
+			console.error("Failed to read theme file:", err);
+			toast.error("Couldn't read that file.");
+		}
+	}
+
+	async function pasteFromClipboard() {
+		try {
+			const css = await navigator.clipboard.readText();
+			if (!css.trim()) {
+				toast.error("Clipboard is empty.");
+				return;
+			}
+			await importCss(css, "pasted-theme");
+		} catch (err) {
+			console.error("Failed to read clipboard:", err);
+			toast.error("Couldn't read the clipboard.");
+		}
 	}
 
 	$effect(() => {
@@ -106,6 +191,24 @@
 											</button>
 										{/each}
 									</div>
+
+									{#if setting.id === "theme"}
+										<div class="theme-import-row">
+											<input
+												bind:this={fileInputEl}
+												type="file"
+												accept=".css"
+												class="visually-hidden"
+												onchange={handleFileInputChange}
+											/>
+											<button class="action-btn" disabled={importing} onclick={openFilePicker}>
+												Import theme file…
+											</button>
+											<button class="action-btn" disabled={importing} onclick={pasteFromClipboard}>
+												Paste theme CSS
+											</button>
+										</div>
+									{/if}
 								{:else}
 									<div class="choice-options">
 										{#each setting.options as option (option.value)}
@@ -375,8 +478,41 @@
 		border-color: var(--chrome-accent);
 	}
 
-	.theme-name {
+	.theme-import-row {
+		display: flex;
+		gap: 8px;
+		margin-top: 10px;
+	}
+
+	/* Visually hidden but still focusable/clickable via the real <button>s,
+	   which is what fileInputEl.click() drives — a plain `display: none`
+	   input still works programmatically, but this keeps it in the
+	   accessibility tree the same way a deliberately-hidden-but-present
+	   control normally would. */
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
+		border: 0;
+	}
+
+	.theme-name {
+		/* `.theme-card` is a 110px grid cell (minmax(110px, 1fr) above); a long
+		   user theme name — unlike the 7 short builtin names this was written
+		   against — overflows it. `max-width: 100%` is required alongside
+		   `overflow`/`text-overflow`: this is a flex child in a column flex
+		   container, which sizes to content by default and simply ignores
+		   `text-overflow` with nothing capping its width first. */
+		display: block;
+		max-width: 100%;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 	}
 
 	/* ---- Choice options (no swatches) ---- */

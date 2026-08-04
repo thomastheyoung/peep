@@ -303,6 +303,39 @@ async function setThemeValue(id: ThemeId) {
 	persist();
 }
 
+/**
+ * Apply `candidateId` if it resolves against the (successfully) discovered
+ * registry, otherwise fall back to the default theme AND PERSIST that
+ * fallback (markdown-viewer-zm6). Callers MUST only reach this after a
+ * `discover()` call has reported `scanned: true` — this function has no way
+ * to tell "genuinely gone" from "couldn't check," so calling it on a failed
+ * scan would silently reintroduce the exact data loss `unverifiedThemeId`
+ * exists to prevent.
+ *
+ * Shared by two call sites that both need this same rule:
+ *   - `init()`, with `candidateId` = the freshly-parsed (not yet applied)
+ *     stored theme id.
+ *   - the `user-themes-changed` watcher's post-reconcile step, with
+ *     `candidateId` = the CURRENTLY ACTIVE `themeState.id` — a theme that was
+ *     valid a moment ago can stop resolving mid-session (the user deleted the
+ *     file), and that reconciliation is the identical rule at a different
+ *     trigger, not a different rule.
+ *
+ * Releases `unverifiedThemeId` unconditionally on entry: reaching this
+ * function at all means a scan just succeeded, so whatever an EARLIER failed
+ * scan was holding onto is no longer the right thing to write — either this
+ * candidate resolves (write it) or it doesn't (write the default instead).
+ */
+async function applyResolvedTheme(candidateId: string | undefined): Promise<void> {
+	unverifiedThemeId = undefined;
+	if (candidateId && isThemeId(candidateId)) {
+		await themeState.setTheme(candidateId);
+	} else {
+		await themeState.init();
+		persist();
+	}
+}
+
 const settings: SettingDef[] = $derived([
 	{
 		type: "choice",
@@ -411,6 +444,13 @@ export interface PreferencesAPI {
 	init(): Promise<void>;
 	/** Write any pending debounced save immediately. Call before the app quits. */
 	flush(): Promise<void>;
+	/**
+	 * Re-scans the user themes directory and reconciles the currently active
+	 * theme against the result. Called from the debounced `user-themes-changed`
+	 * listener in +page.svelte — a theme file can be deleted or edited on disk
+	 * at any point mid-session, not only at launch.
+	 */
+	redetectThemes(): Promise<void>;
 }
 
 export const preferences: PreferencesAPI = {
@@ -477,6 +517,44 @@ export const preferences: PreferencesAPI = {
 
 	flush() {
 		return flushStored();
+	},
+
+	async redetectThemes() {
+		const discovery = await discover();
+		if (!discovery.scanned) {
+			// A re-scan can fail mid-session too (the directory becomes
+			// unreadable, an IPC hiccup) — the currently active theme is already
+			// applied and rendering fine, so there is nothing to reconcile and
+			// nothing to persist. Do NOT touch `unverifiedThemeId` here: that
+			// field is specifically for a stored-but-not-yet-applied id from
+			// `init()`; a failed re-scan mid-session has no such pending value.
+			return;
+		}
+
+		if (unverifiedThemeId !== undefined) {
+			// A launch-time scan failed to resolve the user's stored id, so
+			// `themeState.id` right now is only the VISUAL fallback (default) —
+			// not the theme the user actually chose. This later, successful scan
+			// is the first real chance to try the ORIGINAL stored id again, not
+			// merely to check whether the visual fallback still resolves (it
+			// always will; it's a builtin). `applyResolvedTheme` applies it if
+			// discovery now finds it, or commits to the default for real
+			// (persisting it) if it's genuinely gone.
+			await applyResolvedTheme(unverifiedThemeId);
+			return;
+		}
+
+		// No pending unverified id — reconcile the CURRENTLY ACTIVE theme
+		// instead. Only take the fallback path when it actually stopped
+		// resolving: a re-scan runs on every debounced `user-themes-changed`
+		// event, including ones that only ADD or edit an unrelated theme, and
+		// `applyResolvedTheme` would otherwise re-run `setTheme` (a full
+		// re-sanitize) on the SAME still-valid id for no reason.
+		if (isThemeId(themeState.id)) return;
+		// The theme that resolved a moment ago (the user deleted its file, or
+		// renamed it) no longer does. Already known invalid, so this call
+		// always takes `applyResolvedTheme`'s fallback branch.
+		await applyResolvedTheme(themeState.id);
 	},
 
 	async init() {
@@ -556,25 +634,13 @@ export const preferences: PreferencesAPI = {
 			unverifiedThemeId = stored.theme;
 			await themeState.init();
 		} else {
-			// Scan succeeded (this call) — always release the held id for this
-			// outcome rather than inherit whatever a PRIOR call left behind.
-			// `init()` only runs once per real app launch, so in production
-			// this line is defensive; it matters for any caller (tests, or a
-			// future re-init path) invoking `init()` more than once in the same
-			// session after an earlier scanned:false result.
-			unverifiedThemeId = undefined;
-			if (stored.theme && isThemeId(stored.theme)) {
-				await themeState.setTheme(stored.theme);
-			} else {
-				// Scan genuinely ran and the stored id (if any) isn't in the
-				// result — the theme really is gone (deleted, renamed, or there
-				// was simply no stored theme yet). Falling back AND PERSISTING is
-				// deliberate (markdown-viewer-zm6): the alternative — falling back
-				// without writing — would leave the broken reference in the file
-				// forever, silently reverting to default on every single launch
-				// instead of self-healing once.
-				await themeState.init();
-			}
+			// Scan succeeded — `applyResolvedTheme` both releases any id an
+			// earlier failed scan was holding and applies (or falls back to and
+			// persists) the freshly-parsed stored id. See its doc comment: this
+			// is the SAME rule the watcher's reconciliation uses later in the
+			// session, just triggered here by init() instead of a live
+			// `user-themes-changed` event.
+			await applyResolvedTheme(stored.theme);
 		}
 	},
 };
