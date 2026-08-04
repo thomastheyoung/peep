@@ -1,3 +1,6 @@
+/*! @name Vaporwave
+	@description Purple-to-magenta gradient background with a subtle grid of near-transparent scanlines and neon pink/cyan headings.
+	@author peep */
 @layer theme {
 	.app {
 		background:

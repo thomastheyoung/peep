@@ -1,3 +1,6 @@
+/*! @name Swiss Design
+	@description Stark white background, oversized black display type, and a single red accent in International Typographic Style.
+	@author peep */
 @layer theme {
 	.app {
 		background: #ffffff;

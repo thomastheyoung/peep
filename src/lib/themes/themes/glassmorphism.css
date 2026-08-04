@@ -1,3 +1,6 @@
+/*! @name Glassmorphism
+	@description Frosted-glass panels over a purple gradient backdrop, built entirely from backdrop-filter blur and translucent fills.
+	@author peep */
 @layer theme {
 	.app {
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

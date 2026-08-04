@@ -1,3 +1,6 @@
+/*! @name Arctic Ice
+	@description Pale ice-blue background with a cool navy-blue text color and sky-blue accent.
+	@author peep */
 @layer theme {
 	.app {
 		background: #f0f7ff;

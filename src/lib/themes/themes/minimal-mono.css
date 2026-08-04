@@ -1,3 +1,6 @@
+/*! @name Minimal Mono
+	@description Off-white background in IBM Plex Mono with literal Markdown hash marks rendered before each heading.
+	@author peep */
 @font-face {
 	font-family: "IBM Plex Mono";
 	font-weight: 400;

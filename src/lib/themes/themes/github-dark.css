@@ -1,3 +1,6 @@
+/*! @name GitHub Dark
+	@description GitHub's dark UI palette, token-only so every rule lives in base.css.
+	@author peep */
 /* Token-only theme. Every rule it needs lives in base.css and reads these
    variables; see the token vocabulary comment there. Nothing here duplicates a
    selector, so restyling the markdown body happens in exactly one place. */

@@ -1,3 +1,6 @@
+/*! @name Candy Pop
+	@description Bright white background with a five-color gradient-clipped h1 and dashed yellow rule under h2.
+	@author peep */
 @layer theme {
 	.app {
 		background: #fffbfe;

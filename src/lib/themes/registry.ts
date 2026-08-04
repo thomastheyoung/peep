@@ -3,7 +3,7 @@ import { themeColors } from "./theme-colors";
 
 /**
  * Theme definitions. Preview swatches are NOT authored here — they are read out
- * of each theme's own CSS by `scripts/extract-theme-colors.js` (run via
+ * of each theme's own CSS by `scripts/extract-theme-colors.ts` (run via
  * `pnpm gen:theme-colors`) and merged in below, so a swatch cannot disagree
  * with what the theme actually paints.
  *

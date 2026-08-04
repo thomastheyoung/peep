@@ -1,3 +1,6 @@
+/*! @name GitHub Light
+	@description GitHub's light UI palette, token-only so every rule lives in base.css.
+	@author peep */
 /* Token-only theme — see github-dark.css and the token vocabulary in base.css. */
 @layer tokens {
 	.app {

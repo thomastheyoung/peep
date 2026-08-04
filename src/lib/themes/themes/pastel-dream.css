@@ -1,3 +1,6 @@
+/*! @name Pastel Dream
+	@description Soft lavender background with a gradient-clipped h1 and pastel purple/pink accents.
+	@author peep */
 @layer theme {
 	.app {
 		background: #fef9ff;

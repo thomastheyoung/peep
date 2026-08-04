@@ -1,3 +1,6 @@
+/*! @name Neon Cyberpunk
+	@description Near-black background with saturated pink and cyan glow, monospace headings lit by text-shadow.
+	@author peep */
 @layer theme {
 	.app {
 		background: #0a0014;

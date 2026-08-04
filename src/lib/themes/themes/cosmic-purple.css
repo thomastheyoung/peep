@@ -1,3 +1,6 @@
+/*! @name Cosmic Purple
+	@description Deep space-purple background with a radial nebula glow and text-shadow halos on violet and pink headings.
+	@author peep */
 @layer theme {
 	.app {
 		background: #0f0720;

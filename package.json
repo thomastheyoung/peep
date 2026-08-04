@@ -12,7 +12,7 @@
     "tauri": "tauri",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "gen:theme-colors": "node scripts/extract-theme-colors.js",
+    "gen:theme-colors": "node scripts/extract-theme-colors.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

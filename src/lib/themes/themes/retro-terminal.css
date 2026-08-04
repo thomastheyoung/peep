@@ -1,3 +1,6 @@
+/*! @name Retro Terminal
+	@description Phosphor-green monospace text on black with scanline texture and glowing text-shadow headings.
+	@author peep */
 @font-face {
 	font-family: "IBM Plex Mono";
 	font-weight: 400;

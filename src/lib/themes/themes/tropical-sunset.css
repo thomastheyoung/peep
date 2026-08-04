@@ -1,3 +1,6 @@
+/*! @name Tropical Sunset
+	@description Warm peach-to-orange gradient background with a pink-to-orange gradient-clipped h1.
+	@author peep */
 @layer theme {
 	.app {
 		background: linear-gradient(180deg, #fff7ed 0%, #fff1e6 100%);
