@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
-	import { tick, untrack } from "svelte";
+	import { tick, untrack, onDestroy } from "svelte";
 	import { tabs, type Tab } from "$lib/tabs.svelte";
 	import type { FileContent } from "$lib/types";
 	import { preferences as prefs } from "$lib/preferences.svelte";
@@ -23,6 +23,52 @@
 
 	let contentEl: HTMLElement | undefined = $state();
 	let articleEl: HTMLElement | undefined = $state();
+
+	// Theme CSS injection.
+	//
+	// This used to be {@html} rendering a raw string containing a style
+	// element into <svelte:head>. That is an XSS sink: {@html} hands the
+	// string straight to the HTML parser, and a style element is "raw text"
+	// per the HTML spec — the parser scans for the literal characters that
+	// close it and does not care that they came from a CSS comment or a
+	// `content: "..."` string. A theme containing that closing sequence
+	// anywhere ends the element early, and the rest is parsed as live HTML in
+	// <head>. There is no CSS-level escape: CSS cannot say "don't close my
+	// parent tag." Setting `.textContent` instead goes through the DOM text
+	// API, so the parser is never invoked on theme data and the sink does not
+	// exist — this is not a blocklist that could have a gap.
+	//
+	// Removal is deliberately on unmount (onDestroy) and NOT an $effect
+	// cleanup. An $effect's returned teardown runs before EVERY re-run, so
+	// returning `styleEl.remove()` would destroy and rebuild the node on every
+	// theme switch — and would make the reuse branch below dead code. Reuse is
+	// the point: the same node is repopulated in place.
+	//
+	// In production this component's root never unmounts, so onDestroy never
+	// fires — but Storybook and HMR both remount it, and a leftover node from
+	// a previous mount would race the new one in the cascade depending on
+	// creation order.
+	let themeStyleEl: HTMLStyleElement | undefined;
+
+	$effect(() => {
+		// Created lazily in the effect, not at module scope: SSR is disabled
+		// here, but module-level `document` access breaks any non-browser
+		// evaluation (Vitest, a future SSR build).
+		if (!themeStyleEl) {
+			themeStyleEl = document.createElement("style");
+			themeStyleEl.id = "md-theme";
+			document.head.appendChild(themeStyleEl);
+		}
+		// The empty string is a valid, expected value (no theme loaded yet).
+		// The old code guarded injection with {#if}, which is what allowed a
+		// previous theme's CSS to linger; writing unconditionally clears it.
+		themeStyleEl.textContent = prefs.theme.css;
+	});
+
+	onDestroy(() => {
+		themeStyleEl?.remove();
+		themeStyleEl = undefined;
+	});
 
 	// Re-render mermaid diagrams when the theme CSS changes (dark ↔ light)
 	$effect(() => {
@@ -262,9 +308,6 @@
 
 <svelte:head>
 	<title>{tabs.active ? `${tabs.active.filename} — peep` : 'peep'}</title>
-	{#if prefs.theme.css}
-		{@html `<style id="md-theme">${prefs.theme.css}</style>`}
-	{/if}
 </svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />

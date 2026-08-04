@@ -45,10 +45,37 @@
    rules, while a theme needing real structure still overrides everything from
    `theme`. Layer order beats specificity, so none of these need !important.
 
-   Note ThemePreview.svelte appends its overrides *unlayered* — unlayered styles
-   outrank every layer regardless of order, so adding a layer here cannot
-   disturb the preview. */
-@layer base, tokens, theme;
+   `user` sorts last, below only the unlayered app chrome. The sanitizer
+   (markdown-viewer-gfi) wraps an imported theme's CSS in `@layer user` before
+   it reaches the page, so a user theme overrides every built-in theme without
+   needing higher specificity to do it.
+
+   IMPORTANT and non-obvious: !important inverts the cascade twice over, and
+   the sanitizer strips it because of the FIRST of these, not the second.
+   Both were measured in real Chromium (jsdom models neither layers nor
+   var(), so it cannot answer this):
+
+     1. A layered !important beats an UNLAYERED normal declaration — and
+        beats it regardless of specificity. App chrome lives unlayered in
+        component <style> blocks, which is what normally puts it out of a
+        theme's reach: unlayered normal styles outrank every layer. That
+        protection evaporates against !important, so
+        `@layer user { .titlebar { display: none !important } }` really does
+        hide the titlebar. It even beats an unlayered !important, so chrome
+        cannot defend itself by escalating. Stripping !important from user
+        CSS is therefore the only thing that makes `@layer user` an actual
+        containment boundary rather than a naming convention.
+
+     2. Among layers, !important reverses their order — the *first*-declared
+        layer wins, so an !important in `user` would lose to one in `base`.
+        True, but not why we strip: it describes a theme failing to win,
+        whereas (1) describes a theme winning something it must never win.
+
+   Note ThemePreview.svelte appends its overrides *unlayered* — unlayered
+   styles outrank every layer (including `user`) regardless of order, so
+   adding a layer here cannot disturb the preview. Per (1) that holds only
+   for normal declarations, which is all the preview overrides use. */
+@layer base, tokens, theme, user;
 
 @layer base {
 	:root {
