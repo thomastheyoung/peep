@@ -2,6 +2,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -12,6 +13,15 @@ use tauri::{Emitter, Manager};
 use tauri::RunEvent;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
+
+// Preferences file name and its atomic-write sibling. The `.tmp` name is
+// fixed (not per-write-unique) because `AppState::prefs_lock` already
+// serializes writers, so there is never a collision to worry about.
+const PREFERENCES_FILE: &str = "preferences.json";
+const PREFERENCES_TMP: &str = "preferences.json.tmp";
+// Generous ceiling for a small JSON blob of user settings; guards against
+// a corrupted or maliciously huge file wedging the read path.
+const MAX_PREFS_BYTES: u64 = 64 * 1024;
 
 #[cfg(target_os = "macos")]
 mod default_viewer {
@@ -105,6 +115,9 @@ struct AppState {
     watched_files: Mutex<HashSet<PathBuf>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     initial_files: Mutex<Vec<String>>,
+    // Guards preference writes so the fixed `.tmp` sibling name never collides
+    // with itself under concurrent saves.
+    prefs_lock: Mutex<()>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -267,6 +280,134 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
     guard.drain(..).collect()
 }
 
+/// Atomically replace `target_name` (inside `dir`) with `bytes` via a sibling
+/// tmp file + rename. Caller must hold `AppState::prefs_lock` — the tmp
+/// filename is fixed, so concurrent callers would stomp on each other.
+fn write_atomic(
+    dir: &Path,
+    tmp_name: &str,
+    target_name: &str,
+    bytes: &[u8],
+) -> std::io::Result<()> {
+    fs::create_dir_all(dir)?;
+
+    let tmp = dir.join(tmp_name);
+    let target = dir.join(target_name);
+
+    {
+        // Scoped so the handle is dropped (and the fd closed) before the
+        // rename below — Windows refuses to rename a file that is still open.
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        // Forces the data blocks to disk before we rename. Without this, the
+        // rename's metadata can journal ahead of the data on ext4/APFS, so a
+        // crash right after the rename can leave a zero-length target.
+        file.sync_all()?;
+    }
+
+    if let Err(e) = fs::rename(&tmp, &target) {
+        // Best-effort: don't let a failed cleanup mask the original error,
+        // and leave the previous `target` untouched either way.
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+
+    // Deliberately not fsyncing the directory entry. Worst case after power
+    // loss is that the rename itself is lost and `target` is left as its
+    // previous complete version — never a torn write — which isn't worth an
+    // extra syscall pair on a path that fires on every slider tick.
+    Ok(())
+}
+
+/// Read the raw preferences JSON from disk. `Ok(None)` means "no file yet"
+/// (the frontend then runs its localStorage migration); a read/decode
+/// failure is also folded into `Ok(None)` since the next save just rewrites
+/// the file. Only genuine I/O errors reach the caller as `Err`.
+///
+/// The backend does not model or validate the preference schema — this is
+/// deliberate. `parseStoredPreferences` on the frontend is the single source
+/// of truth for what a valid preferences blob looks like.
+fn load_preferences_from(config_dir: &Path) -> Result<Option<String>, String> {
+    let path = config_dir.join(PREFERENCES_FILE);
+    let file = match fs::File::open(&path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("Cannot read preferences: {e}")),
+    };
+
+    // Reject an oversized file outright rather than reading a prefix of it.
+    // `take()` truncates silently, which would hand the frontend a partial JSON
+    // document that looks complete — better to report "no usable file" and let
+    // the next save replace it.
+    match file.metadata() {
+        Ok(meta) if meta.len() > MAX_PREFS_BYTES => return Ok(None),
+        Ok(_) => {}
+        Err(e) => return Err(format!("Cannot read preferences: {e}")),
+    }
+
+    let mut buf = String::new();
+    // Still bounded: the file could grow between the metadata check and the
+    // read, and a fifo/device file reports len 0 while reading forever.
+    match file.take(MAX_PREFS_BYTES).read_to_string(&mut buf) {
+        Ok(_) => Ok(Some(buf)),
+        // Includes non-UTF-8 content; treat it the same as "absent" and let
+        // the next save repair it.
+        Err(_) => Ok(None),
+    }
+}
+
+/// Persist the raw preferences JSON to disk, replacing any existing file.
+fn save_preferences_to(config_dir: &Path, json: &str) -> Result<(), String> {
+    write_atomic(
+        config_dir,
+        PREFERENCES_TMP,
+        PREFERENCES_FILE,
+        json.as_bytes(),
+    )
+    .map_err(|e| format!("Cannot write preferences: {e}"))
+}
+
+/// `Ok(None)` means the preferences file does not exist yet (the frontend
+/// falls back to its localStorage migration); `Err` means a real I/O
+/// failure, distinct from "nothing saved yet".
+#[tauri::command]
+// Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
+#[allow(clippy::needless_pass_by_value)]
+fn get_preferences(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Cannot resolve config dir: {e}"))?;
+    load_preferences_from(&config_dir)
+}
+
+#[tauri::command]
+// Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
+#[allow(clippy::needless_pass_by_value)]
+fn set_preferences(json: String, app: tauri::AppHandle) -> Result<(), String> {
+    // Symmetric with the read cap: without this the app could write a file it
+    // then refuses to read back. The real payload is a couple hundred bytes.
+    if json.len() as u64 > MAX_PREFS_BYTES {
+        return Err("Preferences payload too large".into());
+    }
+
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Cannot resolve config dir: {e}"))?;
+
+    let state = app.state::<AppState>();
+    // Recover rather than propagate: this mutex guards `()` — the fixed tmp
+    // filename, not any invariant — so a poisoned lock has nothing to protect,
+    // and propagating would brick saving for the rest of the session. Matches
+    // `get_initial_files`, which recovers for the same reason.
+    let _guard = state
+        .prefs_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    save_preferences_to(&config_dir, &json)
+}
+
 /// Build the native application menu (App, Edit, View submenus).
 fn build_menu(handle: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // No accelerator: there is no standard shortcut for this. The explicit
@@ -359,6 +500,7 @@ pub fn run() {
             watched_files: Mutex::new(HashSet::new()),
             watcher: Mutex::new(None),
             initial_files: Mutex::new(Vec::new()),
+            prefs_lock: Mutex::new(()),
         })
         .invoke_handler(tauri::generate_handler![
             read_file,
@@ -366,7 +508,9 @@ pub fn run() {
             unwatch_file,
             get_initial_files,
             is_default_markdown_viewer,
-            set_default_markdown_viewer
+            set_default_markdown_viewer,
+            get_preferences,
+            set_preferences
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -553,5 +697,125 @@ mod tests {
     #[test]
     fn allowed_extensions_contains_expected_values() {
         assert_eq!(ALLOWED_EXTENSIONS, &["md", "markdown"]);
+    }
+
+    #[test]
+    fn preferences_round_trip_through_disk() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_roundtrip");
+        let _ = fs::create_dir_all(&dir);
+
+        let json = r#"{"theme":"dracula","zoom":1.2}"#;
+        save_preferences_to(&dir, json).unwrap();
+        let loaded = load_preferences_from(&dir).unwrap();
+        assert_eq!(loaded.as_deref(), Some(json));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn preferences_missing_file_yields_ok_none() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_missing");
+        let _ = fs::create_dir_all(&dir);
+
+        let loaded = load_preferences_from(&dir).unwrap();
+        assert!(loaded.is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_atomic_replaces_existing_file_and_leaves_no_tmp() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_replace");
+        let _ = fs::create_dir_all(&dir);
+
+        write_atomic(&dir, PREFERENCES_TMP, PREFERENCES_FILE, b"first").unwrap();
+        write_atomic(&dir, PREFERENCES_TMP, PREFERENCES_FILE, b"second").unwrap();
+
+        let contents = fs::read_to_string(dir.join(PREFERENCES_FILE)).unwrap();
+        assert_eq!(contents, "second");
+        assert!(!dir.join(PREFERENCES_TMP).exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_atomic_creates_missing_parent_dir() {
+        let dir = std::env::temp_dir()
+            .join("peep_test_prefs_mkdir")
+            .join("nested");
+        // Deliberately not creating `dir` up front — this is what's under test.
+        let _ = fs::remove_dir_all(&dir);
+
+        write_atomic(&dir, PREFERENCES_TMP, PREFERENCES_FILE, b"content").unwrap();
+        let contents = fs::read_to_string(dir.join(PREFERENCES_FILE)).unwrap();
+        assert_eq!(contents, "content");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stale_tmp_file_is_overwritten_and_never_read() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_stale_tmp");
+        let _ = fs::create_dir_all(&dir);
+
+        // Simulate a crash mid-write: a leftover tmp file from a previous,
+        // never-completed save.
+        fs::write(dir.join(PREFERENCES_TMP), b"crashed-write-garbage").unwrap();
+
+        write_atomic(&dir, PREFERENCES_TMP, PREFERENCES_FILE, b"good").unwrap();
+
+        let loaded = load_preferences_from(&dir).unwrap();
+        assert_eq!(loaded.as_deref(), Some("good"));
+        assert!(!dir.join(PREFERENCES_TMP).exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn oversized_file_is_rejected_not_truncated() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_oversized");
+        let _ = fs::create_dir_all(&dir);
+
+        // One byte past the cap so a correct implementation cannot return the
+        // full contents.
+        let cap = usize::try_from(MAX_PREFS_BYTES).unwrap();
+        let huge = "a".repeat(cap + 1);
+        fs::write(dir.join(PREFERENCES_FILE), &huge).unwrap();
+
+        // Must be None, not a truncated prefix: handing the frontend a partial
+        // JSON document that parses as garbage is worse than reporting "no
+        // usable file", which is a state it already handles.
+        assert_eq!(load_preferences_from(&dir).unwrap(), None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_exactly_at_the_cap_is_still_read() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_at_cap");
+        let _ = fs::create_dir_all(&dir);
+
+        // Guards against an off-by-one turning the cap into a stricter limit
+        // than documented.
+        let cap = usize::try_from(MAX_PREFS_BYTES).unwrap();
+        fs::write(dir.join(PREFERENCES_FILE), "a".repeat(cap)).unwrap();
+
+        let loaded = load_preferences_from(&dir).unwrap();
+        assert_eq!(loaded.map(|s| s.len()), Some(cap));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn invalid_utf8_file_yields_ok_none() {
+        let dir = std::env::temp_dir().join("peep_test_prefs_invalid_utf8");
+        let _ = fs::create_dir_all(&dir);
+
+        fs::write(dir.join(PREFERENCES_FILE), [0xFF, 0xFE, 0xFD]).unwrap();
+
+        let loaded = load_preferences_from(&dir).unwrap();
+        assert!(loaded.is_none());
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -238,12 +238,22 @@
 			updater.checkOnce().catch(() => {});
 		}, 3000);
 
+		// Preferences are written through a 150ms debounce, so quitting right
+		// after a change would drop it. localStorage writes used to be synchronous
+		// and free; on-disk writes are not, and this app persists window geometry
+		// across sessions, so users expect settings to survive a quit.
+		const flushPrefs = () => {
+			prefs.flush().catch(() => {});
+		};
+		window.addEventListener("beforeunload", flushPrefs);
+
 		return () => {
 			unlistenChanged.then((fn) => fn());
 			unlistenOpen.then((fn) => fn());
 			unlistenZoom.then((fn) => fn());
 			unlistenCheckUpdates.then((fn) => fn());
 			clearTimeout(autoCheckTimer);
+			window.removeEventListener("beforeunload", flushPrefs);
 			clearAllTimers();
 		};
 	});

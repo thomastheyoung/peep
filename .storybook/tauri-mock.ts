@@ -21,6 +21,8 @@ const COMMAND_RESPONSES: Record<string, unknown> = {
 	},
 	watch_file: null,
 	unwatch_file: null,
+	get_preferences: null,
+	set_preferences: null,
 };
 
 export function installTauriMock() {

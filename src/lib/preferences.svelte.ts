@@ -1,5 +1,6 @@
 import { themeState, isThemeId } from "./themes/theme.svelte";
 import { type ThemeId } from "./themes/registry";
+import { loadPreferencesFile, savePreferencesFile } from "./ipc";
 
 type ContentWidth = "auto" | "wide" | "full";
 type SettingsSection = "appearance" | "layout" | "font";
@@ -86,12 +87,54 @@ function parseStoredPreferences(raw: string | null): Partial<StoredPreferences> 
 	}
 }
 
-function loadStored(): Partial<StoredPreferences> {
-	return parseStoredPreferences(localStorage.getItem(STORAGE_KEY));
+// Debounced: localStorage writes were sync and free, but a range slider calls
+// `set` on every step (see commands.ts:81 / the drag handlers in
+// Preferences.svelte), which would otherwise mean one fsync-ed disk write per
+// animation frame over IPC. Stays a plain (non-async) function so `persist()`
+// and its call sites don't need to become async just to fire off a save.
+const SAVE_DEBOUNCE_MS = 150; // matches the existing file-changed debounce in +page.svelte
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Serializes writes so the LAST-ISSUED save is the last to land on disk.
+//
+// This is not belt-and-braces: Tauri dispatches every `invoke` onto its async
+// runtime via `async_runtime::spawn` (tauri/src/ipc/mod.rs:329), and the JS
+// `invoke` returns independent promises, so two in-flight writes can complete
+// in either order. The backend's `prefs_lock` guarantees mutual exclusion but
+// NOT ordering. Without this chain the first-run migration write (issued from
+// `init`, and the slowest possible write since it creates the config dir) can
+// land *after* a newer user change and silently revert it — and then delete the
+// localStorage key that was the only remaining copy.
+let saveChain: Promise<void> = Promise.resolve();
+function queueSave(json: string): Promise<void> {
+	// Both handlers re-issue: a rejected earlier write must not poison the chain
+	// and block every subsequent save for the rest of the session.
+	saveChain = saveChain.then(
+		() => savePreferencesFile(json),
+		() => savePreferencesFile(json),
+	);
+	return saveChain;
 }
 
 function saveStored(prefs: StoredPreferences) {
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+	clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		saveTimer = undefined;
+		queueSave(JSON.stringify(prefs)).catch((err) => console.error("Failed to save preferences:", err));
+	}, SAVE_DEBOUNCE_MS);
+}
+
+/**
+ * Writes any pending debounced save immediately. Without this, quitting within
+ * `SAVE_DEBOUNCE_MS` of a change drops it — a regression versus the old
+ * synchronous localStorage write, and one users would notice because this app
+ * already persists window geometry across sessions.
+ */
+function flushStored(): Promise<void> {
+	if (saveTimer === undefined) return saveChain;
+	clearTimeout(saveTimer);
+	saveTimer = undefined;
+	return queueSave(JSON.stringify(allStored(themeState.id)));
 }
 
 // ---------------------------------------------------------------------------
@@ -297,6 +340,8 @@ export interface PreferencesAPI {
 	closePanel(): void;
 	togglePanel(): void;
 	init(): Promise<void>;
+	/** Write any pending debounced save immediately. Call before the app quits. */
+	flush(): Promise<void>;
 }
 
 export const preferences: PreferencesAPI = {
@@ -361,8 +406,42 @@ export const preferences: PreferencesAPI = {
 		showPanel = !showPanel;
 	},
 
+	flush() {
+		return flushStored();
+	},
+
 	async init() {
-		const stored = loadStored();
+		// Migration from the pre-on-disk-preferences localStorage scheme:
+		//
+		// | File     | localStorage   | Behavior                                            |
+		// |----------|----------------|------------------------------------------------------|
+		// | present  | any            | file wins; localStorage ignored and left in place    |
+		// | absent   | present+valid  | migrate; remove LS key only after the write resolves |
+		// | absent   | absent         | defaults                                             |
+		// | corrupt  | any            | parseStoredPreferences returns {} => defaults; next  |
+		// |          |                | persist() repairs. Deliberately does NOT fall back   |
+		// |          |                | to localStorage — a corrupt file proves migration    |
+		// |          |                | already ran, so resurrecting the LS snapshot would   |
+		// |          |                | time-travel settings. Self-heal over archaeology.    |
+		let raw = await loadPreferencesFile();
+		if (raw === null) {
+			const legacy = localStorage.getItem(STORAGE_KEY);
+			if (legacy !== null && Object.keys(parseStoredPreferences(legacy)).length > 0) {
+				raw = legacy;
+				// Queued rather than awaited: awaiting would block `init()`, and with
+				// it theme application, behind a disk write — the user would stare at
+				// an unthemed window. Going through `queueSave` means any later user
+				// change is chained *after* this write and therefore wins, so the
+				// migration can never revert newer state (see `queueSave`).
+				//
+				// The legacy key is removed ONLY after the write resolves, so a failed
+				// write leaves the migration retryable on the next launch.
+				queueSave(legacy)
+					.then(() => localStorage.removeItem(STORAGE_KEY))
+					.catch((err) => console.error("Preferences migration failed:", err));
+			}
+		}
+		const stored = parseStoredPreferences(raw);
 		if (stored.contentWidth) contentWidth = stored.contentWidth;
 		if (stored.zoomLevel != null) zoomLevel = stored.zoomLevel;
 		if (stored.fontWeight != null) fontWeight = stored.fontWeight;
