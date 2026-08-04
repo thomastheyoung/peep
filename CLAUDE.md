@@ -21,6 +21,9 @@ pnpm tauri build
 # Type checking
 pnpm check
 
+# Regenerate theme preview swatches from theme CSS (after changing a theme's colors)
+pnpm gen:theme-colors
+
 # Storybook (shared components, official themes, design explorations)
 pnpm storybook
 
@@ -67,10 +70,23 @@ pnpm build-storybook
 
 ### Theme system (`src/lib/themes/`)
 - `types.ts` — `ThemeMeta` interface: id, name, preview colors, lazy `load()` function
-- `registry.ts` — array of 22 theme definitions, each with a dynamic `import("./themes/<name>.css?raw")` loader
+- `registry.ts` — 22 theme definitions, each with a dynamic `import("./themes/<name>.css?raw")` loader. The `definitions` array is `as const satisfies readonly Omit<ThemeMeta, "colors">[]`, which is what keeps `ThemeId` a union of the 22 literal ids rather than `string`; `themes` maps the generated palette on top. **Preview swatches are not authored here** — see `theme-colors.ts`
+- `theme-colors.ts` — **generated**, do not edit. `pnpm gen:theme-colors` runs `scripts/extract-theme-colors.js`, which reads each theme's own `.app` rule and derives the three preview swatches. Previously these were hand-written next to a `load()` for a file that repeated the same hex values, with nothing keeping the two in sync. Indexing it by `ThemeId` in `registry.ts` makes a missing palette a compile error. The extractor understands both theme shapes (`--md-*` tokens, or legacy `background`/`color`) and reduces a gradient to its **last** background layer — layers paint front-to-back, so the last one is the page color
 - `theme.svelte.ts` — reactive theme state exported as `themeState`. Theme persistence is handled by `preferences.svelte.ts` via the `md-preferences` localStorage key
-- `themes/*.css` — 22 complete CSS theme files, injected into `<svelte:head>` as raw CSS at runtime
-- `base.css` — structural defaults for `.markdown-body` using `@layer base, theme` (themes override via `@layer theme`)
+- `themes/*.css` — 22 CSS theme files, injected into `<svelte:head>` as raw CSS at runtime
+- `base.css` — structural defaults plus the **token vocabulary** (documented in-file). Layer order is `@layer base, tokens, theme`:
+  - `base` — structure, consuming `var(--md-*, <fallback>)` where each fallback equals the pre-token value
+  - `tokens` — where a theme declares `--md-*` on `.app`; `github-dark`/`github-light` are token-only and set no selectors beyond inline-code and shiki
+  - `theme` — raw CSS, wins over both. The other 20 themes still live here and are unaffected
+
+  Tokens are a **default layer, not a replacement**: 20 of 22 themes set `font-family`, `font-size`, `padding` and `border-radius`, 15 set `box-shadow`, and `neo-brutalist`'s h2 accent bar is a `calc()` layout invariant. No token vocabulary captures that, so themes keep full CSS power.
+
+  Three traps when tokenizing a property in `base.css`, all found by real-browser diffing:
+  - **A property that had no declaration must use `var(--md-x)` with no fallback**, not a fallback equal to the "obvious" default. `pre` had no `border-radius`; adding `8px` would have rounded 9 themes' code blocks
+  - **`hr` is drawn two ways** — most themes fill the 0.25em block via `background`, but `electric-blue` and `handwritten` use `border-top` over a transparent element. A `currentColor` background fallback paints a bar behind their border
+  - **Don't declare `font-family` on `pre`** — it previously inherited the UA `monospace` default, and the 20 legacy themes style `.markdown-body code`, not `pre`. The token belongs on `pre code`
+
+  **jsdom cannot verify any of this** — it supports neither `@layer` nor `var()`, so `getComputedStyle` returns roughly what was literally declared and every cascade assertion silently passes or fails for the wrong reason. Verify in real Chromium via the already-present `playwright` dep, diffing computed styles against `git show HEAD:` for each theme.
 
 ### Storybook (`.storybook/`, `src/stories/`, `src/lib/storybook/`)
 

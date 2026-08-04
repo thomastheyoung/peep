@@ -40,7 +40,15 @@
 	font-display: swap;
 }
 
-@layer base, theme;
+/* Cascade order. `tokens` sits between `base` and `theme` so a theme that only
+   declares --md-* variables gets a complete look from `base`'s token-consuming
+   rules, while a theme needing real structure still overrides everything from
+   `theme`. Layer order beats specificity, so none of these need !important.
+
+   Note ThemePreview.svelte appends its overrides *unlayered* — unlayered styles
+   outrank every layer regardless of order, so adding a layer here cannot
+   disturb the preview. */
+@layer base, tokens, theme;
 
 @layer base {
 	:root {
@@ -64,6 +72,52 @@
 		/* Shape */
 		--chrome-radius: 0px;
 		--chrome-border-width: 2px;
+	}
+
+	/* -------------------------------------------------------------------------
+	   Theme token vocabulary
+	   -------------------------------------------------------------------------
+	   The contract between a theme and the markdown body. A theme sets these on
+	   `.app` inside `@layer tokens` and gets a complete look with no selector
+	   duplication; anything a token cannot express still goes in `@layer theme`
+	   as ordinary CSS.
+
+	   Deliberately small — every token is interface surface. Structural choices
+	   (per-heading sizes and margins, pseudo-element decorations, per-element
+	   font stacks) are NOT tokenized: 20 of 22 themes vary those in ways no
+	   fixed vocabulary captures, so they stay as plain CSS in `@layer theme`.
+
+	   Tokens are consumed below as var(--md-x, <fallback>) where the fallback is
+	   exactly the value used before tokenization. A theme that sets nothing
+	   renders bit-identically to the pre-token behavior.
+
+	     --md-bg          page background
+	     --md-text        body text
+	     --md-text-muted  de-emphasized text (blockquotes, captions)
+	     --md-accent      links, selection, checkbox accent
+	     --md-accent-text link text, if it should differ from --md-accent
+	     --md-border      rules, table cells, heading underlines
+	     --md-surface     raised/striped fills (table stripes, footnote rules)
+	     --md-code-bg     inline code and non-shiki code block background
+	     --md-code-text   inline code text
+	     --md-radius      corner radius for code blocks, images, shiki
+	     --md-radius-sm   corner radius for inline code and small controls
+	     --md-font-body   body font stack
+	     --md-font-mono   code font stack
+	     --md-shadow      elevation for code blocks/tables/images
+
+	   `--md-content-width`, `--md-font-weight`, `--md-letter-spacing` and
+	   `--md-line-height` are NOT theme tokens — +page.svelte sets those inline
+	   from user preferences, so a theme must not claim them. */
+
+	/* App surface. Previously every theme set background/color on `.app`
+	   directly; token-only themes set --md-bg/--md-text instead. The fallbacks
+	   are `transparent`/`inherit` so a theme still painting `.app` from
+	   `@layer theme` wins and nothing regresses. */
+	.app {
+		background: var(--md-bg, transparent);
+		color: var(--md-text, inherit);
+		font-family: var(--md-font-body, inherit);
 	}
 
 	/* Markdown content — structural defaults */
@@ -98,6 +152,7 @@
 		line-height: 1.15;
 		text-transform: none;
 		letter-spacing: -0.02em;
+		border-color: var(--md-border, currentColor);
 	}
 
 	.markdown-body h2 {
@@ -106,6 +161,7 @@
 		margin: 2em 0 0.75em;
 		padding-bottom: 0.3em;
 		border-bottom: 1px solid;
+		border-color: var(--md-border, currentColor);
 		line-height: 1.25;
 		text-transform: none;
 		letter-spacing: -0.01em;
@@ -156,28 +212,33 @@
 		font-weight: 600;
 	}
 
-	/* Links */
+	/* Links. --md-accent-text lets a theme use a link color distinct from the
+	   accent used for selection/checkboxes; it falls through to --md-accent. */
 	.markdown-body a {
 		text-decoration: none;
+		color: var(--md-accent-text, var(--md-accent, inherit));
 	}
 
 	.markdown-body a:hover {
 		text-decoration: underline;
 	}
 
-	/* Inline code */
-	.markdown-body code {
-		font-family: ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+	/* Inline code. Scoped with :not(pre) so it cannot fight the `pre code` reset
+	   below, and uses its own token — inline code usually wants a translucent
+	   tint that reads over any background, while a block wants an opaque fill. */
+	.markdown-body :not(pre) > code {
+		font-family: var(--md-font-mono, ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", monospace);
 		font-size: 0.875em;
 		padding: 0.2em 0.4em;
-		border-radius: 6px;
+		border-radius: var(--md-radius-sm, 6px);
+		background: var(--md-inline-code-bg, transparent);
+		color: var(--md-code-text, inherit);
 	}
 
 	/* Code blocks */
 	.markdown-body pre {
 		margin: 0 0 16px;
 		padding: 16px;
-		border-radius: 8px;
 		overflow-x: auto;
 		overscroll-behavior-x: contain;
 		font-size: 0.85em;
@@ -185,22 +246,41 @@
 		   surplus line-height becomes half-leading above and below each glyph,
 		   which visibly breaks the borders of ASCII diagrams. */
 		line-height: 1.35;
-		box-shadow: none;
+		box-shadow: var(--md-shadow, none);
 		border: none;
 		transform: none;
 		-webkit-overflow-scrolling: touch;
 		tab-size: 4;
+		/* No fallback radius: `pre` had none before tokenization (only `.shiki`
+		   did), and 9 themes never set one. A bare `8px` fallback would newly
+		   round their non-shiki blocks. */
+		border-radius: var(--md-radius);
+		/* Deliberately no font-family here. `pre` previously inherited the UA
+		   `monospace` default, and the 20 legacy themes style `.markdown-body
+		   code` rather than `pre` — declaring a stack here would override that
+		   inheritance for all of them. `pre code` below carries the token. */
 	}
 
+	/* Only non-shiki blocks take the token background — shiki paints its own via
+	   --shiki-background, and tinting underneath it would show at the padding. */
+	.markdown-body pre:not(.shiki) {
+		background: var(--md-code-bg, transparent);
+	}
+
+	/* Block code. The font token lives here rather than on `pre` so it does not
+	   override the UA monospace default that legacy themes rely on (they style
+	   `.markdown-body code`, which no longer matches inside `pre`). With no
+	   token set this resolves to the same generic `monospace` as before. */
 	.markdown-body pre code {
 		padding: 0;
 		background: none;
 		font-size: inherit;
 		border: none;
+		font-family: var(--md-font-mono, monospace);
 	}
 
 	.markdown-body .shiki {
-		border-radius: 8px;
+		border-radius: var(--md-radius, 8px);
 	}
 
 	/* Blockquotes */
@@ -208,6 +288,8 @@
 		margin: 1.5em 0;
 		padding: 0.25em 1em;
 		border-left: 0.25em solid;
+		border-color: var(--md-border, currentColor);
+		color: var(--md-text-muted, inherit);
 		transform: none;
 		box-shadow: none;
 		background: transparent;
@@ -242,26 +324,38 @@
 	.markdown-body td {
 		padding: 6px 13px;
 		border: 1px solid;
+		border-color: var(--md-border, currentColor);
 	}
 
 	.markdown-body th {
 		font-weight: 600;
 	}
 
-	/* Horizontal rule */
+	/* Zebra striping. Transparent by default so themes that stripe from
+	   `@layer theme` (or not at all) are unaffected. */
+	.markdown-body tr:nth-child(2n) {
+		background: var(--md-surface, transparent);
+	}
+
+	/* Horizontal rule. Themes draw this two different ways: most fill the 0.25em
+	   block via `background`, but electric-blue and handwritten instead use a
+	   `border-top` over a transparent element. No fallback here, so a theme that
+	   sets no token keeps a transparent background and its border shows alone —
+	   a `currentColor` fallback would paint a bar behind those borders. */
 	.markdown-body hr {
 		height: 0.25em;
 		margin: 24px 0;
 		border: 0;
 		border-radius: 2px;
 		overflow: visible;
+		background: var(--md-border);
 	}
 
 	/* Images */
 	.markdown-body img {
 		max-width: 100%;
 		height: auto;
-		border-radius: 8px;
+		border-radius: var(--md-radius, 8px);
 		transform: none;
 		box-shadow: none;
 	}
@@ -368,10 +462,17 @@
 	}
 
 	/* Footnotes */
+	/* Footnotes. The separator takes --md-border where a theme provides one;
+	   the currentColor fallback preserves the previous look for the 21 themes
+	   that never styled this section. Note token themes therefore get a
+	   lighter, correctly-weighted rule here instead of full-strength body text
+	   — an intentional improvement, and the only deliberate visual change in
+	   the tokenization. */
 	.markdown-body section[data-footnotes] {
 		margin-top: 2em;
 		padding-top: 1em;
 		border-top: 1px solid;
+		border-color: var(--md-border, currentColor);
 		font-size: 0.875em;
 	}
 

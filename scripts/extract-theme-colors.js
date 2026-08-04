@@ -1,0 +1,151 @@
+/**
+ * Derives the palette swatches shown in the command palette and Preferences
+ * from the theme CSS itself, so a swatch cannot disagree with what the theme
+ * actually paints. Previously `registry.ts` hand-authored these three hex
+ * values next to a `load()` for a file that repeated them — nothing kept the
+ * pair in sync, and a preview could silently lie about its theme.
+ *
+ * Run via `pnpm gen:theme-colors`; the generated file is committed so the app
+ * and tests never depend on this script at runtime.
+ *
+ * Two theme shapes are supported, because migration to tokens is incremental:
+ *   - token themes  → read --md-bg / --md-text / --md-accent
+ *   - legacy themes → read background / color / --md-accent from the .app rule
+ * Token lookups win, so a theme gets more direct as it migrates.
+ */
+
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const THEMES_DIR = join(HERE, "..", "src", "lib", "themes", "themes");
+const OUT_FILE = join(HERE, "..", "src", "lib", "themes", "theme-colors.ts");
+
+/** Grab the body of the first `.app { ... }` rule, whatever layer wraps it. */
+function appRuleBody(css) {
+	const match = css.match(/\.app\s*\{([^}]*)\}/);
+	return match ? match[1] : "";
+}
+
+/** Read a single declaration's value out of a rule body. */
+function declaration(body, prop) {
+	// Escape `--` custom props for use in a regex; prop names are literal here.
+	const re = new RegExp(`(?:^|;)\\s*${prop.replace(/[-]/g, "\\-")}\\s*:\\s*([^;]+)`, "i");
+	const match = body.match(re);
+	return match ? match[1].trim() : null;
+}
+
+/**
+ * A swatch is a single solid color, but several themes paint `.app` with
+ * gradients (some spanning multiple lines and multiple layers). Reduce such a
+ * value to the one color that best represents the theme's page.
+ *
+ * Two CSS facts drive this, and getting either wrong produces a swatch that
+ * misrepresents the theme:
+ *
+ *  1. Comma-separated background layers paint front-to-back, so the LAST layer
+ *     is the bottom-most — the page color. handwritten.css draws
+ *     `repeating-linear-gradient(… #e8e0d4 …), #fffff8`: the rules are on top
+ *     and #fffff8 is the paper. Taking the first stop would report the rule
+ *     color as the background.
+ *  2. A solid final layer is the answer outright; when the last layer is itself
+ *     a gradient (glassmorphism, tropical-sunset), its first stop is the
+ *     representative color — matching what the registry listed by hand.
+ *
+ * Near-transparent stops are skipped throughout: vaporwave layers
+ * `rgba(255,255,255,0.03)` scanlines, which would otherwise read as white.
+ */
+function toSolidColor(value) {
+	if (!value) return null;
+	const flat = value.replace(/\s+/g, " ").trim();
+	if (!/gradient\(/i.test(flat)) return flat;
+
+	const COLOR = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)/gi;
+	const visible = (c) => {
+		const alpha = c.match(/^(?:rgba|hsla)\([^)]*?,\s*([\d.]+)\s*\)$/i);
+		return !alpha || Number(alpha[1]) >= 0.5;
+	};
+
+	// Split top-level layers on commas that are not inside gradient parens.
+	const layers = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < flat.length; i++) {
+		const ch = flat[i];
+		if (ch === "(") depth++;
+		else if (ch === ")") depth--;
+		else if (ch === "," && depth === 0) {
+			layers.push(flat.slice(start, i));
+			start = i + 1;
+		}
+	}
+	layers.push(flat.slice(start));
+
+	// Bottom-most layer first, then upward if it yields no usable color.
+	for (const layer of layers.reverse()) {
+		const stops = (layer.match(COLOR) ?? []).filter(visible);
+		if (stops.length) return stops[0];
+	}
+	return null;
+}
+
+/**
+ * Resolve one swatch channel: prefer the token, fall back to the legacy
+ * property. Returns null when neither is present so the caller can report
+ * exactly which theme and channel failed rather than emitting a bad color.
+ */
+function channel(body, tokenProp, legacyProp) {
+	const raw = declaration(body, tokenProp) ?? (legacyProp ? declaration(body, legacyProp) : null);
+	return toSolidColor(raw);
+}
+
+function extract(css, file) {
+	const body = appRuleBody(css);
+	if (!body) throw new Error(`${file}: no .app rule found`);
+
+	const colors = {
+		bg: channel(body, "--md-bg", "background"),
+		text: channel(body, "--md-text", "color"),
+		accent: channel(body, "--md-accent", null),
+	};
+
+	for (const [key, value] of Object.entries(colors)) {
+		if (!value) throw new Error(`${file}: could not resolve '${key}' from the .app rule`);
+	}
+	return colors;
+}
+
+const files = readdirSync(THEMES_DIR)
+	.filter((f) => f.endsWith(".css"))
+	.sort();
+
+const entries = files.map((file) => {
+	const css = readFileSync(join(THEMES_DIR, file), "utf8");
+	return [file.replace(/\.css$/, ""), extract(css, file)];
+});
+
+const body = entries
+	.map(([id, c]) => `\t"${id}": { bg: "${c.bg}", text: "${c.text}", accent: "${c.accent}" },`)
+	.join("\n");
+
+const out = `// GENERATED by scripts/extract-theme-colors.js — do not edit.
+// Regenerate with \`pnpm gen:theme-colors\` after changing a theme's colors.
+// Values are read from each theme's own CSS so a preview swatch cannot drift
+// from what the theme actually paints.
+
+export interface ThemeColors {
+	readonly bg: string;
+	readonly text: string;
+	readonly accent: string;
+}
+
+export const themeColors = {
+${body}
+} as const satisfies Record<string, ThemeColors>;
+
+export type ThemeColorId = keyof typeof themeColors;
+`;
+
+writeFileSync(OUT_FILE, out);
+console.log(`Wrote ${entries.length} theme palettes to ${OUT_FILE}`);
