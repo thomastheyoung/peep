@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the theme module to isolate preferences testing
+// Mock the theme module to isolate preferences testing.
+//
+// `discover` defaults to an immediately-resolved `{scanned: true, themes: []}`
+// so every pre-existing test in this file (none of which cares about
+// discovery) is unaffected. Tests that DO care replace it with
+// `mockDiscover.mockResolvedValue(...)` or a deferred promise per-case.
+// `allThemes` is `let`, not `const`, so a test can register a theme id that
+// only "discovery" would have found (e.g. "my-theme") without it being a
+// registry member from the start — matching how a real discover() call
+// would grow the live list.
 vi.mock("./themes/theme.svelte", () => {
 	let id = "github-dark";
-	const allThemes = [
+	let allThemes = [
 		{ id: "github-dark", name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" }, load: () => Promise.resolve("") },
 		{ id: "github-light", name: "GitHub Light", colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" }, load: () => Promise.resolve("") },
 	];
@@ -26,6 +35,13 @@ vi.mock("./themes/theme.svelte", () => {
 			},
 		},
 		isThemeId: (value: string) => allThemes.some((t) => t.id === value),
+		discover: vi.fn(() => Promise.resolve({ scanned: true, themes: allThemes })),
+		// Test-only escape hatch: lets a test add a theme id to the mocked
+		// registry as if discover() had found it, without hand-maintaining a
+		// second copy of `allThemes` in the test file.
+		__addMockTheme(themeId: string) {
+			allThemes = [...allThemes, { id: themeId, name: themeId, colors: { bg: "#000", text: "#fff", accent: "#f00" }, load: () => Promise.resolve("") }];
+		},
 	};
 });
 
@@ -39,9 +55,12 @@ vi.mock("./ipc", () => ({
 
 import { preferences, type RangeSetting, type ChoiceSetting } from "./preferences.svelte";
 import { loadPreferencesFile, savePreferencesFile } from "./ipc";
+import { discover } from "./themes/theme.svelte";
 
 const mockLoad = vi.mocked(loadPreferencesFile);
 const mockSave = vi.mocked(savePreferencesFile);
+const mockDiscover = vi.mocked(discover);
+type MockedThemeModule = { __addMockTheme(themeId: string): void };
 
 describe("preferences", () => {
 	const prefs = preferences;
@@ -50,11 +69,17 @@ describe("preferences", () => {
 		localStorage.clear();
 		mockLoad.mockReset();
 		mockSave.mockReset();
+		mockDiscover.mockReset();
 		// Default: no on-disk file, so existing non-migration tests that don't
 		// call init() are unaffected, and tests that DO call init() get "absent
 		// file" behavior unless they override this.
 		mockLoad.mockResolvedValue(null);
 		mockSave.mockResolvedValue(undefined);
+		// Default: scan ran and found nothing beyond the two mocked builtins —
+		// matches the `scanned: true` shape every pre-existing (pre-discovery)
+		// test implicitly assumed. Tests exercising the ordering race or the
+		// scanned:false branch override this per-case.
+		mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
 		// Reset singleton state since preferences uses module-level $state.
 		// contentWidth/fontWeight/letterSpacing/lineHeight have no dedicated
 		// reset* methods, so drive them back to defaults through the same
@@ -474,6 +499,113 @@ describe("preferences", () => {
 			expect(mockSave).toHaveBeenCalledTimes(1);
 
 			vi.useRealTimers();
+		});
+	});
+
+	// markdown-viewer-bnw / zm6: theme discovery must complete before init()
+	// decides whether a stored theme id is valid, and the persistence
+	// consequence of a FAILED scan must differ from a scan that legitimately
+	// found nothing.
+	describe("init: theme discovery ordering and the scanned discriminant", () => {
+		// THE ordering regression, as an acceptance test. `isThemeId` is a
+		// point-in-time snapshot of theme.svelte.ts's live registry — if init()
+		// checks it before discovery has resolved, a valid user-theme id looks
+		// unknown and falls through to the default on every single launch.
+		//
+		// Deferred promise: discover() is left unresolved until AFTER the
+		// assertion on stored.theme's parse would have already run, so this
+		// only passes if init() actually AWAITS discover() before checking
+		// isThemeId — not merely calls it and moves on.
+		it("awaits discover() before validating the stored theme id, so a late-discovered id still applies", async () => {
+			let resolveDiscover!: (result: { scanned: true; themes: unknown[] }) => void;
+			mockDiscover.mockReturnValue(
+				new Promise((resolve) => {
+					resolveDiscover = resolve;
+				}),
+			);
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "my-theme" }));
+
+			const initPromise = prefs.init();
+
+			// Register "my-theme" as something discover() would have found, but
+			// don't resolve discover() itself yet — if init() raced ahead of it,
+			// the isThemeId check below would already have run and failed.
+			const themeModule = (await import("./themes/theme.svelte")) as unknown as MockedThemeModule;
+			themeModule.__addMockTheme("my-theme");
+			resolveDiscover({ scanned: true, themes: [] });
+
+			await initPromise;
+			expect(prefs.theme.id).toBe("my-theme");
+		});
+
+		// scanned: false — the scan itself could not run (broken IPC, unreadable
+		// directory). This must NOT be treated as evidence the stored theme is
+		// gone: applying (and persisting) a fallback here would permanently
+		// overwrite a perfectly valid stored id with "github-dark" the moment a
+		// transient IPC hiccup coincides with app launch.
+		it("scanned:false: preserves the stored theme id verbatim when a later setter fires", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "unresolvable-theme" }));
+
+			await prefs.init();
+
+			// A later, unrelated setter call (zoom) must not smuggle the visual
+			// fallback onto disk as a side effect of writing zoomLevel.
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			// The ORIGINAL id, not the default the UI fell back to, and not an
+			// absent key. Omitting the field would be just as destructive as
+			// writing the fallback: `savePreferencesFile` replaces the whole
+			// file rather than merging into it (`write_atomic` renames a freshly
+			// written temp over it), so a payload with no `theme` key deletes
+			// the user's choice on the first zoom step after a failed scan.
+			// This assertion is the difference between the two, and it fails
+			// against an omit-the-key implementation.
+			expect(written.theme).toBe("unresolvable-theme");
+			expect(written.zoomLevel).toBeCloseTo(1.1, 5);
+		});
+
+		// scanned: true and the stored id is absent from the (successfully
+		// discovered) list — the theme really is gone (deleted, renamed). This
+		// is zm6's explicit requirement: fall back to default AND WRITE IT, so
+		// the broken reference doesn't linger in the file forever waiting for a
+		// scan that will never find it.
+		it("scanned:true, id absent: falls back to the default theme and PERSISTS the fallback", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "deleted-theme" }));
+
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark"); // DEFAULT_THEME_ID in the mock
+
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-dark");
+		});
+
+		it("scanned:true, id present: applies and persists the stored id normally", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-light");
+
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-light");
 		});
 	});
 

@@ -1,4 +1,4 @@
-import { themeState, isThemeId } from "./themes/theme.svelte";
+import { themeState, isThemeId, discover } from "./themes/theme.svelte";
 import { type ThemeId } from "./themes/registry";
 import type { ThemeColors } from "./themes/parse-theme-css";
 import { loadPreferencesFile, savePreferencesFile } from "./ipc";
@@ -225,8 +225,38 @@ const contentWidthValues: Record<ContentWidth, string> = {
 	full: "100%",
 };
 
+// The stored theme id from a launch whose scan could not run (`discover()`
+// returned `scanned: false`), held so later writes can put it back verbatim.
+//
+// It has to be the ORIGINAL string, not the visual fallback and not an
+// omitted field. Omitting is the trap: `savePreferencesFile` replaces the
+// whole file (`write_atomic` in lib.rs renames a freshly written temp over
+// it), so a payload with no `theme` key does not "leave the stored value
+// alone" — it ERASES it, on the very first zoom step or slider drag after a
+// failed scan. That is the same data loss this whole branch exists to
+// prevent, just reached by a different route. Measured before this was
+// written: the payload came out as
+// `{"contentWidth":"auto","zoomLevel":1.1,...}` with the user's id gone.
+//
+// A scan failure is not evidence the theme is gone, only that this launch
+// could not check — so the correct write is the value we were given, not a
+// guess and not a hole.
+//
+// `undefined` (the normal case, for every successful launch and every
+// explicit setTheme) means "serialize the live theme id as usual".
+// `setThemeValue` clears it, because an explicit user pick always wins: at
+// that moment there is a definite new value to write.
+let unverifiedThemeId: string | undefined;
+
 function allStored(themeId: string): StoredPreferences {
-	return { theme: themeId, contentWidth, zoomLevel, fontWeight, letterSpacing, lineHeight };
+	return {
+		theme: unverifiedThemeId ?? themeId,
+		contentWidth,
+		zoomLevel,
+		fontWeight,
+		letterSpacing,
+		lineHeight,
+	};
 }
 
 function persist() {
@@ -265,6 +295,11 @@ function setZoomValue(value: number) {
 
 async function setThemeValue(id: ThemeId) {
 	await themeState.setTheme(id);
+	// An explicit user pick is a definite value to persist regardless of how
+	// this session's theme field got here — releases any id a failed
+	// launch-time scan (see `unverifiedThemeId`) was holding on the user's
+	// behalf.
+	unverifiedThemeId = undefined;
 	persist();
 }
 
@@ -445,6 +480,15 @@ export const preferences: PreferencesAPI = {
 	},
 
 	async init() {
+		// Issued BEFORE loadPreferencesFile(), not awaited yet: both are
+		// independent IPC round trips (disk read vs. a themes-directory scan),
+		// so starting them together lets them overlap instead of forcing
+		// discovery to wait behind the preferences read. `discover()` itself is
+		// awaited immediately above the `isThemeId` check below, which is the
+		// only place its result is actually needed — everything between here
+		// and there (migration, numeric normalization) has no dependency on it.
+		const discoveryPromise = discover();
+
 		// Migration from the pre-on-disk-preferences localStorage scheme:
 		//
 		// | File     | localStorage   | Behavior                                            |
@@ -491,14 +535,46 @@ export const preferences: PreferencesAPI = {
 		if (stored.letterSpacing != null)
 			letterSpacing = normalize(stored.letterSpacing, NUMERIC_SPECS.letterSpacing);
 		if (stored.lineHeight != null) lineHeight = normalize(stored.lineHeight, NUMERIC_SPECS.lineHeight);
-		// `isThemeId` is a point-in-time check against the theme registry. Once
-		// user themes are discovered from disk (markdown-viewer-s0r), discovery
-		// must complete before this runs, or a valid user-theme id falls through
-		// to the default and the user's choice silently resets each launch.
-		if (stored.theme && isThemeId(stored.theme)) {
-			await themeState.setTheme(stored.theme);
-		} else {
+
+		// `isThemeId` is a point-in-time check against the live theme registry,
+		// so discovery MUST have completed before it runs here — awaited now,
+		// having been issued at the top of `init()` so its round trip overlapped
+		// with the preferences-file read above rather than running after it.
+		const discovery = await discoveryPromise;
+
+		if (!discovery.scanned) {
+			// The scan itself could not run (broken IPC, unreadable themes
+			// directory) — this is NOT evidence the stored theme is gone, only
+			// that this launch couldn't check. Apply the default so the window
+			// isn't left unthemed, but keep writing the user's ORIGINAL id, so
+			// a launch that merely failed to look cannot overwrite a choice
+			// whose file is probably still sitting on disk. Writing the visual
+			// fallback would destroy it; omitting the field would ALSO destroy
+			// it, because the preferences write replaces the whole file rather
+			// than merging into it. An explicit setTheme() later this session
+			// releases the held id (see setThemeValue).
+			unverifiedThemeId = stored.theme;
 			await themeState.init();
+		} else {
+			// Scan succeeded (this call) — always release the held id for this
+			// outcome rather than inherit whatever a PRIOR call left behind.
+			// `init()` only runs once per real app launch, so in production
+			// this line is defensive; it matters for any caller (tests, or a
+			// future re-init path) invoking `init()` more than once in the same
+			// session after an earlier scanned:false result.
+			unverifiedThemeId = undefined;
+			if (stored.theme && isThemeId(stored.theme)) {
+				await themeState.setTheme(stored.theme);
+			} else {
+				// Scan genuinely ran and the stored id (if any) isn't in the
+				// result — the theme really is gone (deleted, renamed, or there
+				// was simply no stored theme yet). Falling back AND PERSISTING is
+				// deliberate (markdown-viewer-zm6): the alternative — falling back
+				// without writing — would leave the broken reference in the file
+				// forever, silently reverting to default on every single launch
+				// instead of self-healing once.
+				await themeState.init();
+			}
 		}
 	},
 };
