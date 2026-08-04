@@ -141,25 +141,58 @@ function flushStored(): Promise<void> {
 // Defaults & constants
 // ---------------------------------------------------------------------------
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.1;
-const ZOOM_DEFAULT = 1;
+// `step` and `precision` are deliberately separate fields, not one derived
+// from the other:
+//   - `step` is a UI affordance, read only when building `settings` and passed
+//     through to an `<input type="range">`.
+//   - `precision` is a domain invariant, read only by `normalize()`.
+// `fontWeight` is the case that proves they are different concepts: it steps
+// by 100 in the panel, but CSS accepts any integer weight and variable fonts
+// honor them, so a hand-written `437` is kept rather than snapped. Omitting
+// `precision` is how an entry says "clamp but do not quantize".
+interface NumericSpec {
+	min: number;
+	max: number;
+	step: number;
+	default: number;
+	/** Multiplier for `Math.round(v * p) / p`. Omit to skip quantization. */
+	precision?: number;
+}
 
-const FONT_WEIGHT_MIN = 300;
-const FONT_WEIGHT_MAX = 700;
-const FONT_WEIGHT_STEP = 100;
-const FONT_WEIGHT_DEFAULT = 400;
+// Not `as const`: that would narrow each `default` to a literal type, so
+// `$state(NUMERIC_SPECS.zoomLevel.default)` would infer `1` instead of
+// `number` and reject every later assignment. `satisfies` alone gives the
+// compile-time check that each entry is a complete spec.
+const NUMERIC_SPECS = {
+	zoomLevel: { min: 0.5, max: 3, step: 0.1, default: 1, precision: 10 },
+	fontWeight: { min: 300, max: 700, step: 100, default: 400 },
+	letterSpacing: { min: -0.05, max: 0.15, step: 0.01, default: 0, precision: 100 },
+	lineHeight: { min: 1.2, max: 2.4, step: 0.1, default: 1.7, precision: 10 },
+} satisfies Record<string, NumericSpec>;
 
-const LETTER_SPACING_MIN = -0.05;
-const LETTER_SPACING_MAX = 0.15;
-const LETTER_SPACING_STEP = 0.01;
-const LETTER_SPACING_DEFAULT = 0;
-
-const LINE_HEIGHT_MIN = 1.2;
-const LINE_HEIGHT_MAX = 2.4;
-const LINE_HEIGHT_STEP = 0.1;
-const LINE_HEIGHT_DEFAULT = 1.7;
+// Clamp (and optionally quantize) a number into a setting's valid domain.
+//
+// Used by both the setters and `init()`, so a value loaded from disk is always
+// one the setters could have produced — everything downstream (the range
+// inputs, the `format` functions, the `defaultValue` comparisons) was written
+// against the setters' output domain, and a weaker load-path normalization
+// would leave reachable states the rest of the module does not handle.
+//
+// The quantization is written as `Math.round(v * p) / p` and must stay that
+// way. The algebraically identical `Math.round(v / q) * q` is NOT equivalent
+// in IEEE-754: `1.15 / 0.1` is `11.499999999999998`, so that form rounds 1.15
+// DOWN to 1.1 while this one gives 1.2. The error is introduced before the
+// rounding decision, so it changes the result and not merely its precision.
+//
+// Quantize first, clamp second — the clamp must be last so it is always
+// authoritative. Every bound in NUMERIC_SPECS is currently an exact multiple
+// of its own quantum, which makes the two orders equivalent today, but they
+// diverge the moment a bound is not: with `max: 0.15, precision: 10`, clamping
+// first yields 0.2 for an input of 0.16, i.e. a result ABOVE the maximum.
+function normalize(value: number, spec: NumericSpec): number {
+	const quantized = spec.precision ? Math.round(value * spec.precision) / spec.precision : value;
+	return Math.max(spec.min, Math.min(spec.max, quantized));
+}
 
 const FONT_WEIGHT_LABELS: Record<number, string> = {
 	300: "Light",
@@ -179,12 +212,12 @@ function formatLetterSpacing(v: number): string {
 // ---------------------------------------------------------------------------
 
 let contentWidth = $state<ContentWidth>("auto");
-let zoomLevel = $state(ZOOM_DEFAULT);
+let zoomLevel = $state(NUMERIC_SPECS.zoomLevel.default);
 let showPanel = $state(false);
 let activeSection = $state<SettingsSection>("appearance");
-let fontWeight = $state(FONT_WEIGHT_DEFAULT);
-let letterSpacing = $state(LETTER_SPACING_DEFAULT);
-let lineHeight = $state(LINE_HEIGHT_DEFAULT);
+let fontWeight = $state(NUMERIC_SPECS.fontWeight.default);
+let letterSpacing = $state(NUMERIC_SPECS.letterSpacing.default);
+let lineHeight = $state(NUMERIC_SPECS.lineHeight.default);
 const contentWidthValues: Record<ContentWidth, string> = {
 	auto: "780px",
 	wide: "1200px",
@@ -210,22 +243,22 @@ function setContentWidthValue(value: ContentWidth) {
 }
 
 function setFontWeightValue(value: number) {
-	fontWeight = Math.max(FONT_WEIGHT_MIN, Math.min(FONT_WEIGHT_MAX, value));
+	fontWeight = normalize(value, NUMERIC_SPECS.fontWeight);
 	persist();
 }
 
 function setLetterSpacingValue(value: number) {
-	letterSpacing = Math.max(LETTER_SPACING_MIN, Math.min(LETTER_SPACING_MAX, Math.round(value * 100) / 100));
+	letterSpacing = normalize(value, NUMERIC_SPECS.letterSpacing);
 	persist();
 }
 
 function setLineHeightValue(value: number) {
-	lineHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, Math.round(value * 10) / 10));
+	lineHeight = normalize(value, NUMERIC_SPECS.lineHeight);
 	persist();
 }
 
 function setZoomValue(value: number) {
-	zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 10) / 10));
+	zoomLevel = normalize(value, NUMERIC_SPECS.zoomLevel);
 	persist();
 }
 
@@ -269,11 +302,11 @@ const settings: SettingDef[] = $derived([
 		label: "Zoom",
 		section: "layout",
 		keywords: ["magnify", "bigger", "smaller", "scale"],
-		min: ZOOM_MIN,
-		max: ZOOM_MAX,
-		step: ZOOM_STEP,
+		min: NUMERIC_SPECS.zoomLevel.min,
+		max: NUMERIC_SPECS.zoomLevel.max,
+		step: NUMERIC_SPECS.zoomLevel.step,
 		value: zoomLevel,
-		defaultValue: ZOOM_DEFAULT,
+		defaultValue: NUMERIC_SPECS.zoomLevel.default,
 		set: setZoomValue,
 		format: (v) => `${Math.round(v * 100)}%`,
 	},
@@ -283,11 +316,11 @@ const settings: SettingDef[] = $derived([
 		label: "Weight",
 		section: "font",
 		keywords: ["bold", "light", "regular", "medium", "semibold"],
-		min: FONT_WEIGHT_MIN,
-		max: FONT_WEIGHT_MAX,
-		step: FONT_WEIGHT_STEP,
+		min: NUMERIC_SPECS.fontWeight.min,
+		max: NUMERIC_SPECS.fontWeight.max,
+		step: NUMERIC_SPECS.fontWeight.step,
 		value: fontWeight,
-		defaultValue: FONT_WEIGHT_DEFAULT,
+		defaultValue: NUMERIC_SPECS.fontWeight.default,
 		set: setFontWeightValue,
 		format: (v) => FONT_WEIGHT_LABELS[v] ?? String(v),
 	},
@@ -297,11 +330,11 @@ const settings: SettingDef[] = $derived([
 		label: "Letter spacing",
 		section: "font",
 		keywords: ["tracking", "kerning", "spacing"],
-		min: LETTER_SPACING_MIN,
-		max: LETTER_SPACING_MAX,
-		step: LETTER_SPACING_STEP,
+		min: NUMERIC_SPECS.letterSpacing.min,
+		max: NUMERIC_SPECS.letterSpacing.max,
+		step: NUMERIC_SPECS.letterSpacing.step,
 		value: letterSpacing,
-		defaultValue: LETTER_SPACING_DEFAULT,
+		defaultValue: NUMERIC_SPECS.letterSpacing.default,
 		set: setLetterSpacingValue,
 		format: formatLetterSpacing,
 	},
@@ -311,11 +344,11 @@ const settings: SettingDef[] = $derived([
 		label: "Line height",
 		section: "font",
 		keywords: ["leading", "spacing", "vertical"],
-		min: LINE_HEIGHT_MIN,
-		max: LINE_HEIGHT_MAX,
-		step: LINE_HEIGHT_STEP,
+		min: NUMERIC_SPECS.lineHeight.min,
+		max: NUMERIC_SPECS.lineHeight.max,
+		step: NUMERIC_SPECS.lineHeight.step,
 		value: lineHeight,
-		defaultValue: LINE_HEIGHT_DEFAULT,
+		defaultValue: NUMERIC_SPECS.lineHeight.default,
 		set: setLineHeightValue,
 		format: (v) => v.toFixed(1),
 	},
@@ -379,13 +412,13 @@ export const preferences: PreferencesAPI = {
 
 	// Direct setters — used by zoom event handler, keyboard shortcuts, etc.
 	zoomIn() {
-		setZoomValue(zoomLevel + ZOOM_STEP);
+		setZoomValue(zoomLevel + NUMERIC_SPECS.zoomLevel.step);
 	},
 	zoomOut() {
-		setZoomValue(zoomLevel - ZOOM_STEP);
+		setZoomValue(zoomLevel - NUMERIC_SPECS.zoomLevel.step);
 	},
 	resetZoom() {
-		setZoomValue(ZOOM_DEFAULT);
+		setZoomValue(NUMERIC_SPECS.zoomLevel.default);
 	},
 
 	async setTheme(id: ThemeId) {
@@ -441,12 +474,26 @@ export const preferences: PreferencesAPI = {
 					.catch((err) => console.error("Preferences migration failed:", err));
 			}
 		}
+		// `parseStoredPreferences` proves these are finite numbers, not that they
+		// are in range: a hand-edited `{"zoomLevel": 1e6}` would otherwise render
+		// an unusable window until the user found Cmd+0.
+		//
+		// Normalized via `normalize()` rather than through the setters, which
+		// would reuse the same clamps but also `persist()` — the load path would
+		// then write on every launch, and those writes would interleave with the
+		// migration write queued above, the exact ordering hazard `queueSave`
+		// exists to prevent.
 		const stored = parseStoredPreferences(raw);
 		if (stored.contentWidth) contentWidth = stored.contentWidth;
-		if (stored.zoomLevel != null) zoomLevel = stored.zoomLevel;
-		if (stored.fontWeight != null) fontWeight = stored.fontWeight;
-		if (stored.letterSpacing != null) letterSpacing = stored.letterSpacing;
-		if (stored.lineHeight != null) lineHeight = stored.lineHeight;
+		if (stored.zoomLevel != null) zoomLevel = normalize(stored.zoomLevel, NUMERIC_SPECS.zoomLevel);
+		if (stored.fontWeight != null) fontWeight = normalize(stored.fontWeight, NUMERIC_SPECS.fontWeight);
+		if (stored.letterSpacing != null)
+			letterSpacing = normalize(stored.letterSpacing, NUMERIC_SPECS.letterSpacing);
+		if (stored.lineHeight != null) lineHeight = normalize(stored.lineHeight, NUMERIC_SPECS.lineHeight);
+		// `isThemeId` is a point-in-time check against the theme registry. Once
+		// user themes are discovered from disk (markdown-viewer-s0r), discovery
+		// must complete before this runs, or a valid user-theme id falls through
+		// to the default and the user's choice silently resets each launch.
 		if (stored.theme && isThemeId(stored.theme)) {
 			await themeState.setTheme(stored.theme);
 		} else {

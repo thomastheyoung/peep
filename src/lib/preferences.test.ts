@@ -476,4 +476,93 @@ describe("preferences", () => {
 			vi.useRealTimers();
 		});
 	});
+
+	// `parseStoredPreferences` proves stored numerics are finite, not that they
+	// are in range. Nothing validates the file's contents before this, so an
+	// out-of-range value read from disk must be brought into the setters' output
+	// domain on load — everything downstream (the range inputs, the `format`
+	// functions) was written against that domain.
+	describe("init: numeric normalization on load", () => {
+		it("clamps values above the maximum", async () => {
+			mockLoad.mockResolvedValue(
+				JSON.stringify({ zoomLevel: 1e6, fontWeight: 9999, letterSpacing: 99, lineHeight: 1e9 }),
+			);
+
+			await prefs.init();
+
+			expect(prefs.zoomLevel).toBe(3);
+			expect(prefs.fontWeightCss).toBe("700");
+			expect(prefs.letterSpacingCss).toBe("0.15em");
+			expect(prefs.lineHeightCss).toBe("2.4");
+		});
+
+		it("clamps values below the minimum", async () => {
+			mockLoad.mockResolvedValue(
+				JSON.stringify({ zoomLevel: -100, fontWeight: 1, letterSpacing: -5, lineHeight: 0 }),
+			);
+
+			await prefs.init();
+
+			expect(prefs.zoomLevel).toBe(0.5);
+			expect(prefs.fontWeightCss).toBe("300");
+			expect(prefs.letterSpacingCss).toBe("-0.05em");
+			expect(prefs.lineHeightCss).toBe("1.2");
+		});
+
+		// Pins the quantization decision: the load path must produce a value the
+		// setters could have produced, otherwise the panel's range inputs and the
+		// `format` functions (which use toFixed) display a value that disagrees
+		// with the CSS actually applied.
+		it("quantizes fractional values to each setting's precision", async () => {
+			mockLoad.mockResolvedValue(
+				JSON.stringify({ zoomLevel: 0.6666, letterSpacing: 0.03333, lineHeight: 1.6666 }),
+			);
+
+			await prefs.init();
+
+			// `toBe`, not `toBeCloseTo`: the multiply-then-divide form produces
+			// exact quanta, and asserting that is what makes this test reject a
+			// regression to `Math.round(v / q) * q` (which yields 1.2000000000000002
+			// for some inputs — close to, but not, the quantum).
+			expect(prefs.zoomLevel).toBe(0.7);
+			expect(prefs.letterSpacingCss).toBe("0.03em");
+			expect(prefs.lineHeightCss).toBe("1.7");
+		});
+
+		// fontWeight deliberately has no `precision` in NUMERIC_SPECS: the slider
+		// steps by 100, but CSS accepts any integer weight and variable fonts
+		// honor them, so a hand-written intermediate weight is kept rather than
+		// snapped to the nearest 100.
+		it("clamps but does not quantize fontWeight", async () => {
+			mockLoad.mockResolvedValue(JSON.stringify({ fontWeight: 437 }));
+
+			await prefs.init();
+
+			expect(prefs.fontWeightCss).toBe("437");
+		});
+
+		// REGRESSION: normalization must not go through the setters. Each setter
+		// calls persist(), so routing the load path through them would write on
+		// every launch AND interleave those writes with the migration write
+		// queued earlier in init() — the exact ordering hazard queueSave exists
+		// to prevent. This is what pins "clamp without persisting".
+		//
+		// Deliberately non-discriminating against the pre-clamp implementation:
+		// that version also never wrote on load. This test guards a property the
+		// change had to PRESERVE, so it passing before and after is correct.
+		it("does not write to disk while normalizing on load", async () => {
+			vi.useFakeTimers();
+			mockLoad.mockResolvedValue(
+				JSON.stringify({ zoomLevel: 1e6, fontWeight: 9999, letterSpacing: -5, lineHeight: 0 }),
+			);
+
+			await prefs.init();
+			// Well past the 150ms save debounce — a setter-driven persist would
+			// have landed by now.
+			await vi.advanceTimersByTimeAsync(300);
+
+			expect(mockSave).not.toHaveBeenCalled();
+			vi.useRealTimers();
+		});
+	});
 });
