@@ -18,6 +18,7 @@
 	import EmptyState from "$lib/components/EmptyStateStamp.svelte";
 	import Preferences from "$lib/components/Preferences.svelte";
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
+	import Toast from "$lib/components/Toast.svelte";
 	import "$lib/themes/base.css";
 	import "katex/dist/katex.min.css";
 
@@ -314,6 +315,7 @@
 
 <Preferences />
 <CommandPalette />
+<Toast />
 
 <div
 	class="app"
