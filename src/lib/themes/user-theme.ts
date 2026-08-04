@@ -6,25 +6,9 @@
  * shell around this.
  */
 import type { UserThemeFile } from "../ipc";
+import type { UserTheme } from "./types";
 import { parseThemeCss, slugifyThemeId, resolveThemeId } from "./parse-theme-css";
-import { sanitizeThemeCss, type SanitizeResult } from "./sanitize-theme-css";
-
-/**
- * A discovered user theme, shaped to match `ThemeMetaBase<string>` (see
- * `types.ts`) once that interface's `load()` return type is widened in
- * markdown-viewer-s0r's follow-up commit. Declared locally rather than
- * importing `UserTheme` because that interface still types `load` as
- * `Promise<string>` until then — this type is what it becomes.
- */
-export interface BuiltUserTheme {
-	readonly id: string;
-	readonly name: string;
-	readonly source: "user";
-	readonly path: string;
-	readonly revision: number;
-	readonly colors: import("./parse-theme-css").ThemeColors;
-	readonly load: () => Promise<SanitizeResult>;
-}
+import { sanitizeThemeCss } from "./sanitize-theme-css";
 
 /** Shown when a theme's frontmatter has no (or a partial) `@name` field. */
 function titleCaseFromId(id: string): string {
@@ -67,11 +51,11 @@ const FALLBACK_SWATCH = { bg: "#808080", text: "#ffffff", accent: "#a0a0a0" } as
 export function buildUserThemes(
 	files: readonly UserThemeFile[],
 	builtinIds: readonly string[],
-): readonly BuiltUserTheme[] {
+): readonly UserTheme[] {
 	const taken = new Set<string>(builtinIds);
 	const sorted = [...files].sort((a, b) => a.id.localeCompare(b.id));
 
-	return sorted.map((file): BuiltUserTheme => {
+	return sorted.map((file): UserTheme => {
 		const slug = slugifyThemeId(file.id);
 		const id = resolveThemeId(slug, taken);
 		taken.add(id);

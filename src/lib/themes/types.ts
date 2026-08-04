@@ -5,6 +5,7 @@
 // the single declaration of the `{bg,text,accent}` shape — `theme-colors.ts`
 // and `commands.ts` both reference this type rather than re-declaring it.
 import type { ThemeColors } from "./parse-theme-css";
+import type { SanitizeResult } from "./sanitize-theme-css";
 
 /**
  * Shape shared by every theme, generic in its id type so a builtin tuple can
@@ -17,12 +18,27 @@ import type { ThemeColors } from "./parse-theme-css";
  * NOT flow to consumers — `themes` is annotated `readonly BuiltinTheme[]`,
  * which erases them at the module boundary — so nothing downstream switches
  * exhaustively over a theme id, and no such switch would type-check if it did.
+ *
+ * `load` returns `Promise<SanitizeResult>`, not `Promise<string>`, for EVERY
+ * theme, builtin included. A `load()` typed `Promise<string>` that returns
+ * `""` on refusal is LYING about success — and `""` is not a spare value here,
+ * it already means "no theme loaded yet" at `+page.svelte`'s theme-CSS
+ * injection effect. Collapsing "sanitizer rejected this theme" into that same
+ * empty string would make a rejected theme indistinguishable from a fresh,
+ * themeless start, and would let `setTheme` commit `activeId` for a theme
+ * that renders nothing — persisting a broken choice forever, since nothing
+ * downstream would ever see a reason to revert it. A discriminated result
+ * forces every caller to look at `ok` before touching the CSS. Builtins
+ * satisfy this trivially (`{ ok: true, css }`, see `registry.ts`) — they
+ * carry no untrusted input and cannot fail sanitization, but they still go
+ * through the same shape so `theme.svelte.ts` has exactly one code path for
+ * "apply a theme," not two.
  */
 export interface ThemeMetaBase<Id extends string> {
 	readonly id: Id;
 	readonly name: string;
 	readonly colors: ThemeColors;
-	readonly load: () => Promise<string>;
+	readonly load: () => Promise<SanitizeResult>;
 }
 
 /** A theme bundled with the app. `id` is one of the fixed literal ids in `registry.ts`. */

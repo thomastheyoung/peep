@@ -1,5 +1,18 @@
 import type { BuiltinTheme } from "./types";
+import type { SanitizeResult } from "./sanitize-theme-css";
 import { themeColors } from "./theme-colors";
+
+/**
+ * Wraps a builtin's raw CSS import in the same `SanitizeResult` shape user
+ * themes resolve (see the WHY comment on `ThemeMetaBase.load` in `types.ts`).
+ * Always `ok: true`: builtin CSS is checked in, not untrusted input from a
+ * user's filesystem, so it cannot fail sanitization — but it still goes
+ * through the shared shape so `theme.svelte.ts` has exactly one code path
+ * for "apply a theme," not a builtin-only fast lane plus a user-theme path.
+ */
+function builtinLoad(css: Promise<string>): Promise<SanitizeResult> {
+	return css.then((css) => ({ ok: true, css }) as const);
+}
 
 /**
  * Theme definitions. Preview swatches are NOT authored here — they are read
@@ -24,48 +37,43 @@ const definitions = [
 		id: "github-dark",
 		name: "GitHub Dark",
 		source: "builtin",
-		load: () => import("./themes/github-dark.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/github-dark.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "github-light",
 		name: "GitHub Light",
 		source: "builtin",
-		load: () =>
-			import("./themes/github-light.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/github-light.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "neo-brutalist",
 		name: "Neo Brutalist",
 		source: "builtin",
-		load: () =>
-			import("./themes/neo-brutalist.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/neo-brutalist.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "pastel-dream",
 		name: "Pastel Dream",
 		source: "builtin",
-		load: () =>
-			import("./themes/pastel-dream.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/pastel-dream.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "swiss-design",
 		name: "Swiss Design",
 		source: "builtin",
-		load: () =>
-			import("./themes/swiss-design.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/swiss-design.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "candy-pop",
 		name: "Candy Pop",
 		source: "builtin",
-		load: () => import("./themes/candy-pop.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/candy-pop.css?raw").then((m) => m.default)),
 	},
 	{
 		id: "minimal-mono",
 		name: "Minimal Mono",
 		source: "builtin",
-		load: () =>
-			import("./themes/minimal-mono.css?raw").then((m) => m.default),
+		load: () => builtinLoad(import("./themes/minimal-mono.css?raw").then((m) => m.default)),
 	},
 ] as const satisfies readonly Omit<BuiltinTheme, "colors">[];
 
