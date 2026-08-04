@@ -454,3 +454,54 @@ describe("real theme files", () => {
 		if (r.ok) expect(r.frontmatter.name).toBe(themeMeta[id as keyof typeof themeMeta].name);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// The repo-root gallery theme files (`themes/`, not `src/lib/themes/themes/`).
+//
+// These are the 15 themes moved out of the bundled registry to become a
+// browsable, importable gallery (markdown-viewer-rgm) — and until this block,
+// they had zero test coverage despite being exactly the files a user's
+// "Import theme…" flow will feed through this same parser. Read from disk
+// with `node:fs` for the same reason as the builtin block above: vitest's
+// `css: false` stubs `?raw` CSS imports to the empty string, so a glob-based
+// read here would assert nothing while appearing to pass.
+//
+// Unlike the builtin block, this does NOT pin the theme count. The README
+// drift test (`gallery-readme.test.ts`) already fails on a membership change,
+// so pinning the count here would just make adding a 16th theme a two-file
+// edit for no extra safety.
+// ---------------------------------------------------------------------------
+
+const GALLERY_DIR = join(process.cwd(), "themes");
+
+describe("gallery theme files", () => {
+	const entries = readdirSync(GALLERY_DIR)
+		.filter((f) => f.endsWith(".css"))
+		.sort()
+		.map((f) => [f.replace(/\.css$/, ""), readFileSync(join(GALLERY_DIR, f), "utf8")] as const);
+
+	it("finds at least one gallery theme", () => {
+		expect(entries.length).toBeGreaterThan(0);
+	});
+
+	it.each(entries)("%s parses without issues", (_id, css) => {
+		const r = parseThemeCss(css);
+		if (!r.ok) throw new Error(`issues: ${JSON.stringify(r.issues)}`);
+		expect(r.ok).toBe(true);
+	});
+
+	// Permanent regression guard for the markdown-viewer-rgm font-stack rewrite:
+	// no gallery theme may reference the app's own `/fonts/` directory. Those
+	// woff2 files are for the bundled registry; a gallery theme that pointed at
+	// them would 404 for anyone who imports it outside this repo.
+	it.each(entries)("%s does not reference /fonts/", (_id, css) => {
+		expect(css).not.toMatch(/url\(\s*["']?\/fonts\//i);
+	});
+
+	it("gallery ids are disjoint from builtin ids", () => {
+		const builtinIds = new Set(readdirSync(THEMES_DIR).map((f) => f.replace(/\.css$/, "")));
+		const galleryIds = entries.map(([id]) => id);
+		const collisions = galleryIds.filter((id) => builtinIds.has(id));
+		expect(collisions).toEqual([]);
+	});
+});

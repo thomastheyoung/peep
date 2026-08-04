@@ -21,6 +21,7 @@
  *   node scripts/theme-diff.mjs --ref HEAD~1      # against another ref
  *   node scripts/theme-diff.mjs --only github-dark,swiss-design
  *   node scripts/theme-diff.mjs --capture out.json   # record only, no diff
+ *   node scripts/theme-diff.mjs --dir themes      # diff a different theme directory
  *
  * Exit codes: 0 = no changes, 1 = changes found, 2 = the run itself was invalid
  * (bad ref, unknown theme id, empty comparison set). The distinction matters:
@@ -35,8 +36,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
-const THEMES_REL = "src/lib/themes/themes";
-const THEMES_DIR = join(REPO, THEMES_REL);
+const DEFAULT_THEMES_REL = "src/lib/themes/themes";
 const BASE_CSS = "src/lib/themes/base.css";
 
 // The properties worth diffing. Deliberately not "every computed property":
@@ -224,6 +224,19 @@ const only = arg("--only", null)
 	.map((s) => s.trim())
 	.filter(Boolean);
 const capturePath = arg("--capture", null);
+const dirArg = arg("--dir", DEFAULT_THEMES_REL);
+
+// Must be repo-relative: `git show <ref>:<path>` and `git ls-tree <ref> <path>/`
+// only resolve relative to the repo root. An absolute path or one containing
+// `..` would not resolve at the ref side, which reads as "absent at ref" for
+// every file — not a clean error, but a wall of false ADDED rows for a run
+// that never actually compared anything.
+if (dirArg.startsWith("/") || dirArg.split("/").includes("..")) {
+	console.error(`--dir must be a repo-relative path with no "..": ${dirArg}`);
+	process.exit(2);
+}
+const THEMES_REL = dirArg;
+const THEMES_DIR = join(REPO, THEMES_REL);
 
 assertRef(ref);
 
@@ -245,7 +258,7 @@ if (only) {
 const ids = (only ?? themeIds(ref)).filter(known);
 
 if (!ids.length) {
-	console.error("No themes to compare — refusing to report success over an empty set.");
+	console.error(`No themes to compare in ${THEMES_REL} — refusing to report success over an empty set.`);
 	process.exit(2);
 }
 
@@ -304,11 +317,13 @@ if (capturePath) {
 
 const changed = Object.keys(report);
 if (!changed.length) {
-	console.log(`✓ No computed-style changes across ${ids.length} themes (vs ${ref})`);
+	console.log(`✓ No computed-style changes across ${ids.length} themes in ${THEMES_REL} (vs ${ref})`);
 	process.exit(0);
 }
 
-console.log(`\n${changed.length} of ${ids.length} themes changed (vs ${ref}), ${totalChanges} property diffs:\n`);
+console.log(
+	`\n${changed.length} of ${ids.length} themes in ${THEMES_REL} changed (vs ${ref}), ${totalChanges} property diffs:\n`,
+);
 for (const [id, changes] of Object.entries(report)) {
 	if (typeof changes === "string") { console.log(`  ${id}: ${changes}`); continue; }
 	console.log(`  ${id} (${changes.length}):`);

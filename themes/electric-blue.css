@@ -1,69 +1,21 @@
 /*! @name Electric Blue
 	@description Near-black background in IBM Plex Mono with blue glow accents and a blue-shadowed monospace code block.
 	@author peep */
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 500;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 500;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-500-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 600;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 600;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-600-italic.woff2") format("woff2");
-}
-
 @layer theme {
 	.app {
 		background: #0c1222;
 		color: #c8d6e5;
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		--md-accent: #3b82f6;
 	}
 
 	.markdown-body {
 		max-width: var(--md-content-width, 800px);
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 	}
 
 	.markdown-body h1 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-size: 2em;
 		font-weight: 600;
 		color: #3b82f6;
@@ -76,7 +28,7 @@
 	}
 
 	.markdown-body h2 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-size: 1.5em;
 		font-weight: 600;
 		color: #60a5fa;
@@ -88,7 +40,7 @@
 	}
 
 	.markdown-body h3 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-size: 1.2em;
 		font-weight: 600;
 		color: #3b82f6;
@@ -99,7 +51,7 @@
 	}
 
 	.markdown-body h4 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-size: 1em;
 		font-weight: 600;
 		color: #60a5fa;
@@ -129,7 +81,7 @@
 		color: #3b82f6;
 		padding: 2px 6px;
 		border-radius: 0;
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-size: 0.9em;
 	}
 
@@ -169,7 +121,7 @@
 		padding: 10px 14px;
 		font-weight: 600;
 		text-align: left;
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 	}
 
 	.markdown-body tbody td {

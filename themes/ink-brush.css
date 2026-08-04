@@ -1,54 +1,6 @@
 /*! @name Ink & Brush
 	@description Cream paper with a red accent dot, serif Merriweather type, and understated East Asian brush-painting restraint.
 	@author peep */
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-italic.woff2") format("woff2");
-}
-
 @layer theme {
 	.app {
 		background: #faf8f5;
