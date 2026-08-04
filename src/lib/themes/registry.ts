@@ -1,157 +1,105 @@
-import type { ThemeMeta } from "./types";
+import type { BuiltinTheme } from "./types";
 import { themeColors } from "./theme-colors";
 
 /**
- * Theme definitions. Preview swatches are NOT authored here — they are read out
- * of each theme's own CSS by `scripts/extract-theme-colors.ts` (run via
+ * Theme definitions. Preview swatches are NOT authored here — they are read
+ * out of each theme's own CSS by `scripts/extract-theme-colors.ts` (run via
  * `pnpm gen:theme-colors`) and merged in below, so a swatch cannot disagree
  * with what the theme actually paints.
  *
  * Adding a theme: add the .css file, add an entry here, run the generator.
  * The generator throws if a theme's `.app` rule has no resolvable color, so a
  * missing palette fails the build rather than shipping a blank swatch.
+ *
+ * Deliberately curated, not exhaustive: every additional theme is a permanent
+ * tax on every future `base.css` token change, paid via the real-Chromium
+ * diff harness (`pnpm diff:themes`). The other themes shipped here previously
+ * were moved to `/themes` at the repo root, not deleted — markdown-viewer-rgm
+ * turns that into a browsable gallery.
+ *
+ * Order matters: index 0 is the default theme (see `theme.svelte.ts`).
  */
 const definitions = [
 	{
 		id: "github-dark",
 		name: "GitHub Dark",
+		source: "builtin",
 		load: () => import("./themes/github-dark.css?raw").then((m) => m.default),
 	},
 	{
 		id: "github-light",
 		name: "GitHub Light",
+		source: "builtin",
 		load: () =>
 			import("./themes/github-light.css?raw").then((m) => m.default),
 	},
 	{
 		id: "neo-brutalist",
 		name: "Neo Brutalist",
+		source: "builtin",
 		load: () =>
 			import("./themes/neo-brutalist.css?raw").then((m) => m.default),
 	},
 	{
-		id: "warm-paper",
-		name: "Warm Paper",
-		load: () => import("./themes/warm-paper.css?raw").then((m) => m.default),
-	},
-	{
-		id: "retro-terminal",
-		name: "Retro Terminal",
-		load: () =>
-			import("./themes/retro-terminal.css?raw").then((m) => m.default),
-	},
-	{
-		id: "glassmorphism",
-		name: "Glassmorphism",
-		load: () =>
-			import("./themes/glassmorphism.css?raw").then((m) => m.default),
-	},
-	{
-		id: "neon-cyberpunk",
-		name: "Neon Cyberpunk",
-		load: () =>
-			import("./themes/neon-cyberpunk.css?raw").then((m) => m.default),
-	},
-	{
 		id: "pastel-dream",
 		name: "Pastel Dream",
+		source: "builtin",
 		load: () =>
 			import("./themes/pastel-dream.css?raw").then((m) => m.default),
 	},
 	{
 		id: "swiss-design",
 		name: "Swiss Design",
+		source: "builtin",
 		load: () =>
 			import("./themes/swiss-design.css?raw").then((m) => m.default),
 	},
 	{
-		id: "ink-brush",
-		name: "Ink & Brush",
-		load: () => import("./themes/ink-brush.css?raw").then((m) => m.default),
-	},
-	{
-		id: "cosmic-purple",
-		name: "Cosmic Purple",
-		load: () =>
-			import("./themes/cosmic-purple.css?raw").then((m) => m.default),
-	},
-	{
-		id: "tropical-sunset",
-		name: "Tropical Sunset",
-		load: () =>
-			import("./themes/tropical-sunset.css?raw").then((m) => m.default),
-	},
-	{
-		id: "forest-earth",
-		name: "Forest & Earth",
-		load: () =>
-			import("./themes/forest-earth.css?raw").then((m) => m.default),
-	},
-	{
-		id: "art-deco",
-		name: "Art Deco",
-		load: () => import("./themes/art-deco.css?raw").then((m) => m.default),
-	},
-	{
 		id: "candy-pop",
 		name: "Candy Pop",
+		source: "builtin",
 		load: () => import("./themes/candy-pop.css?raw").then((m) => m.default),
 	},
 	{
 		id: "minimal-mono",
 		name: "Minimal Mono",
+		source: "builtin",
 		load: () =>
 			import("./themes/minimal-mono.css?raw").then((m) => m.default),
 	},
-	{
-		id: "newspaper",
-		name: "Newspaper",
-		load: () => import("./themes/newspaper.css?raw").then((m) => m.default),
-	},
-	{
-		id: "vaporwave",
-		name: "Vaporwave",
-		load: () => import("./themes/vaporwave.css?raw").then((m) => m.default),
-	},
-	{
-		id: "arctic-ice",
-		name: "Arctic Ice",
-		load: () =>
-			import("./themes/arctic-ice.css?raw").then((m) => m.default),
-	},
-	{
-		id: "sunset-desert",
-		name: "Sunset Desert",
-		load: () =>
-			import("./themes/sunset-desert.css?raw").then((m) => m.default),
-	},
-	{
-		id: "electric-blue",
-		name: "Electric Blue",
-		load: () =>
-			import("./themes/electric-blue.css?raw").then((m) => m.default),
-	},
-	{
-		id: "handwritten",
-		name: "Handwritten",
-		load: () =>
-			import("./themes/handwritten.css?raw").then((m) => m.default),
-	},
-] as const satisfies readonly Omit<ThemeMeta, "colors">[];
+] as const satisfies readonly Omit<BuiltinTheme, "colors">[];
 
 /**
- * `ThemeId` is derived from `definitions` rather than from `themes` so it stays
- * a union of the 22 string literals. The `as const` above is what keeps each
- * `id` narrow; `satisfies` shape-checks without widening it back to `string`.
+ * `BuiltinThemeId` is derived from `definitions` rather than from `themes` so
+ * it stays a union of the 7 string literals. The `as const` above is what
+ * keeps each `id` narrow; `satisfies` shape-checks without widening it back
+ * to `string`.
  */
-export type ThemeId = (typeof definitions)[number]["id"];
+export type BuiltinThemeId = (typeof definitions)[number]["id"];
 
 /**
- * Indexing `themeColors` by `ThemeId` is the drift check: if a theme is added
- * here without regenerating, or the generated file loses an id, this fails to
- * compile rather than rendering an undefined swatch at runtime.
+ * The union consumers reach for. `(string & {})` rather than plain `string`:
+ * plain `string` in a union absorbs the literals and IDE autocomplete for the
+ * 7 builtin ids is lost. This is NOT a safety mechanism — TypeScript will
+ * happily accept any string here. Runtime safety is `isThemeId` in
+ * `theme.svelte.ts`, which checks membership against the live registry
+ * (builtins today, builtins + discovered user themes once markdown-viewer-s0r
+ * lands).
  */
-export const themes: readonly ThemeMeta[] = definitions.map((def) => ({
+export type ThemeId = BuiltinThemeId | (string & {});
+
+/**
+ * Indexing `themeColors` by `BuiltinThemeId` is HALF the drift check: adding a
+ * theme here without regenerating fails to compile rather than rendering an
+ * undefined swatch at runtime.
+ *
+ * It is blind in the other direction. Indexing a larger generated record with
+ * a smaller id union is legal TypeScript, so REMOVING a theme here without
+ * regenerating leaves `theme-colors.ts` carrying orphaned entries and compiles
+ * clean. The set-equality assertion in `registry.test.ts` is what catches that
+ * — do not delete it as redundant with this line, because it is not.
+ */
+export const themes: readonly BuiltinTheme[] = definitions.map((def) => ({
 	...def,
-	colors: themeColors[def.id satisfies ThemeId],
+	colors: themeColors[def.id satisfies BuiltinThemeId],
 }));

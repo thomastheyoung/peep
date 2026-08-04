@@ -1,5 +1,6 @@
 import { themeState, isThemeId } from "./themes/theme.svelte";
 import { type ThemeId } from "./themes/registry";
+import type { ThemeColors } from "./themes/parse-theme-css";
 import { loadPreferencesFile, savePreferencesFile } from "./ipc";
 
 type ContentWidth = "auto" | "wide" | "full";
@@ -14,7 +15,7 @@ interface ChoiceOption<T extends string = string> {
 	value: T;
 	label: string;
 	description?: string;
-	swatches?: { bg: string; text: string; accent: string };
+	swatches?: ThemeColors;
 }
 
 export interface ChoiceSetting<T extends string = string> {
@@ -280,7 +281,7 @@ const settings: SettingDef[] = $derived([
 			swatches: t.colors,
 		})),
 		value: themeState.id,
-		select: (value: string) => setThemeValue(value as ThemeId),
+		select: (value) => setThemeValue(value),
 	},
 	{
 		type: "choice",

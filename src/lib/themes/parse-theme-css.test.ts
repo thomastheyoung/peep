@@ -29,13 +29,13 @@ describe("toSolidColor", () => {
 		expect(toSolidColor(null)).toBeNull();
 	});
 
-	it("handwritten: takes the LAST layer (#fffff8 paper) over the repeating-linear-gradient rule lines on top", () => {
+	it("takes the LAST layer (#fffff8 paper) over the repeating-linear-gradient rule lines on top (formerly the handwritten gallery theme)", () => {
 		const value =
 			"repeating-linear-gradient(to bottom, transparent 0px, transparent 31px, #e8e0d4 31px, #e8e0d4 32px), #fffff8";
 		expect(toSolidColor(value)).toBe("#fffff8");
 	});
 
-	it("vaporwave: skips near-transparent rgba() scanline stops (alpha < 0.5)", () => {
+	it("skips near-transparent rgba() scanline stops, alpha < 0.5 (formerly the vaporwave gallery theme)", () => {
 		const value =
 			"repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 40px), " +
 			"repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 40px), " +
@@ -44,12 +44,12 @@ describe("toSolidColor", () => {
 		expect(toSolidColor(value)).toBe("#2d1b69");
 	});
 
-	it("glassmorphism: last layer is a gradient, so its first stop represents the theme", () => {
+	it("last layer is a gradient, so its first stop represents the theme (formerly the glassmorphism gallery theme)", () => {
 		const value = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 		expect(toSolidColor(value)).toBe("#667eea");
 	});
 
-	it("tropical-sunset: last layer is a gradient, so its first stop represents the theme", () => {
+	it("last layer is a gradient, so its first stop represents the theme (formerly the tropical-sunset gallery theme)", () => {
 		const value = "linear-gradient(180deg, #fff7ed 0%, #fff1e6 100%)";
 		expect(toSolidColor(value)).toBe("#fff7ed");
 	});

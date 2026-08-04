@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { SettingDef, RangeSetting, PreferencesAPI } from "./preferences.svelte";
 import type { TabsAPI } from "./tabs.svelte";
 import type { UpdaterAPI } from "./updater.svelte";
+import type { ThemeColors } from "./themes/parse-theme-css";
 
 interface CommandBase {
 	id: string;
@@ -13,7 +14,7 @@ interface CommandBase {
 	/** Right-side detail text */
 	detail?: string;
 	/** Color swatches for theme items */
-	swatches?: { bg: string; text: string; accent: string };
+	swatches?: ThemeColors;
 }
 
 interface ParentCommand extends CommandBase {

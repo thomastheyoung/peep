@@ -3,8 +3,19 @@ import { themes } from "./registry";
 import { themeColors } from "./theme-colors";
 
 describe("theme registry", () => {
-	it("has 22 themes", () => {
-		expect(themes).toHaveLength(22);
+	// Exact set, in order: this single assertion subsumes the count, the
+	// membership check ("includes expected themes"), and default-is-first
+	// (index 0 is `github-dark`) all at once.
+	it("has exactly the 7 curated builtin themes, in order", () => {
+		expect(themes.map((t) => t.id)).toEqual([
+			"github-dark",
+			"github-light",
+			"neo-brutalist",
+			"pastel-dream",
+			"swiss-design",
+			"candy-pop",
+			"minimal-mono",
+		]);
 	});
 
 	it("every theme has required fields", () => {
@@ -35,18 +46,6 @@ describe("theme registry", () => {
 			expect(theme.colors.text, `${theme.id} text`).toMatch(hexRegex);
 			expect(theme.colors.accent, `${theme.id} accent`).toMatch(hexRegex);
 		}
-	});
-
-	it("includes expected themes", () => {
-		const ids = themes.map((t) => t.id);
-		expect(ids).toContain("github-dark");
-		expect(ids).toContain("github-light");
-		expect(ids).toContain("retro-terminal");
-		expect(ids).toContain("neon-cyberpunk");
-	});
-
-	it("first theme is github-dark (default)", () => {
-		expect(themes[0]!.id).toBe("github-dark");
 	});
 
 	// The reason theme-colors.ts is generated: a hand-authored swatch could

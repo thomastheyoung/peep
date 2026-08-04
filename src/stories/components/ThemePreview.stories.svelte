@@ -34,7 +34,7 @@
 	{/snippet}
 </Story>
 
-<Story name="Fallback Sample" args={{ themeId: 'warm-paper' }}>
+<Story name="Fallback Sample" args={{ themeId: 'minimal-mono' }}>
 	{#snippet template(args)}
 		<Frame>
 			<ThemePreview {...args} />
@@ -42,7 +42,7 @@
 	{/snippet}
 </Story>
 
-<Story name="Shadow DOM Isolation" args={{ themeId: 'neon-cyberpunk', markdown: sampleDoc }}>
+<Story name="Shadow DOM Isolation" args={{ themeId: 'neo-brutalist', markdown: sampleDoc }}>
 	{#snippet template(args)}
 		<div style="font-family: ui-sans-serif, system-ui, sans-serif;">
 			<p style="max-width: 460px; margin: 0 0 12px; font-size: 13px; color: #6b7280;">
