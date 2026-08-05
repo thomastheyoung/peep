@@ -76,12 +76,57 @@ export async function loadUserThemes(): Promise<UserThemeFile[]> {
 }
 
 /**
- * Imports a theme's CSS under `id`. Rejects on failure — unlike
- * `loadUserThemes`, the import UI needs to know whether the write actually
- * succeeded so it can surface a toast rather than silently no-op.
+ * Discriminated outcome of an import attempt. `reason: "exists"` is not a
+ * failure in the same sense as `reason: "failed"` — it is an EXPECTED,
+ * plan-for-it outcome under `mode: "create-new"` (the user picked a name that
+ * collides with an id already on disk) that the caller must branch on to
+ * offer a "Replace?" prompt, not a fault to log and swallow. Modeling it as a
+ * value rather than a rejection is what makes that branch a `switch` at the
+ * call site instead of a `try/catch` plus a string-match on the error
+ * message — the exact anti-pattern `THEME_EXISTS` in `themes.rs` exists to
+ * prevent callers from falling into.
  */
-export async function importThemeCss(id: string, css: string): Promise<UserThemeFile> {
-	return await invoke<UserThemeFile>("import_theme", { id, css });
+export type ImportOutcome =
+	| { readonly ok: true; readonly file: UserThemeFile }
+	| { readonly ok: false; readonly reason: "exists" }
+	| { readonly ok: false; readonly reason: "failed"; readonly message: string };
+
+/**
+ * Imports a theme's CSS under `id`.
+ *
+ * This is the one write path in this file that does NOT reject on failure —
+ * every other write here (`savePreferencesFile`, `deleteUserTheme`,
+ * `watchUserThemes`) rejects specifically so its caller can tell "the write
+ * failed" apart from "succeeded," per this file's header. Here, one of the
+ * failure modes (an id collision under `mode: "create-new"`, surfaced by the
+ * backend as the `"theme-exists"` sentinel) is not a fault at all — it's an
+ * expected outcome the caller MUST branch on to offer a "Replace?" prompt.
+ * Forcing that through a rejection would push every caller back toward
+ * string-matching `err.message === "theme-exists"`, which is precisely what
+ * `THEME_EXISTS` in `themes.rs` was made a machine-readable sentinel to
+ * avoid. A discriminated `ImportOutcome` return makes the collision a normal
+ * value the type system forces every caller to look at, while any OTHER
+ * failure (disk full, invalid id, IPC channel down) still lands in the
+ * result as `reason: "failed"` rather than being swallowed to `[]`/`null`
+ * the way `loadUserThemes`/`loadPreferencesFile` degrade — there is no safe
+ * default to degrade to for "did the write happen," so the message is
+ * preserved for the caller to show.
+ */
+export async function importThemeCss(
+	id: string,
+	css: string,
+	mode: "create-new" | "replace",
+): Promise<ImportOutcome> {
+	try {
+		const file = await invoke<UserThemeFile>("import_theme", { id, css, mode });
+		return { ok: true, file };
+	} catch (err) {
+		if (err === "theme-exists") {
+			return { ok: false, reason: "exists" };
+		}
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, reason: "failed", message };
+	}
 }
 
 /** Deletes a user theme by id. Rejects on failure, for the same reason as `importThemeCss`. */

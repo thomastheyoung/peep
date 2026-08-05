@@ -18,15 +18,17 @@
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLDivElement | undefined = $state();
 
-	const isThemePanel = $derived(palette.filtered.length > 0 && palette.filtered[0]?.swatches != null);
+	// Explicit signal, not a shape inference: a level is "the theme panel" iff
+	// its rows are theme rows, and `previewThemeId` is set ONLY on theme rows
+	// (see CommandBase.previewThemeId in commands.ts). Checking `swatches`
+	// instead would silently misclassify any future non-theme command that
+	// happens to carry swatches for an unrelated reason, since nothing ties
+	// that field's presence to "this is the theme picker" as a type-level fact.
+	const isThemePanel = $derived(palette.filtered.length > 0 && palette.filtered[0]?.previewThemeId != null);
 
-	// Extract theme ID from selected command (format: "theme:<id>")
 	const previewThemeId = $derived.by(() => {
 		if (!isThemePanel) return undefined;
-		const cmd = palette.filtered[palette.selectedIndex];
-		if (!cmd) return undefined;
-		const parts = cmd.id.split(":");
-		return parts.length === 2 ? parts[1] : undefined;
+		return palette.filtered[palette.selectedIndex]?.previewThemeId;
 	});
 
 	$effect(() => {

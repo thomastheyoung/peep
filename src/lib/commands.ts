@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SettingDef, RangeSetting, PreferencesAPI } from "./preferences.svelte";
+import type { SettingDef, RangeSetting, ThemeSetting, PreferencesAPI } from "./preferences.svelte";
 import type { TabsAPI } from "./tabs.svelte";
 import type { UpdaterAPI } from "./updater.svelte";
 import type { ThemeColors } from "./themes/parse-theme-css";
@@ -15,6 +15,15 @@ interface CommandBase {
 	detail?: string;
 	/** Color swatches for theme items */
 	swatches?: ThemeColors;
+	/**
+	 * Explicit theme id to preview when this row is selected. Set only on the
+	 * theme picker's child rows (select/duplicate/delete). Replaces the old
+	 * `id.split(":")` inference in `CommandPalette.svelte`, which required a
+	 * command's id to have exactly two colon-separated parts to be recognized
+	 * as a theme row — a shape no id is documented to guarantee and every
+	 * other command id (`zoom-in`, `switch-tab`) coincidentally avoided.
+	 */
+	previewThemeId?: string;
 }
 
 interface ParentCommand extends CommandBase {
@@ -82,6 +91,26 @@ function commandFromSetting(setting: SettingDef): Command {
 						action: () => setting.set(v),
 					})),
 			};
+		case "theme": {
+			const current = setting.options.find((o) => o.value === setting.value);
+			return {
+				id: setting.id,
+				label: `${setting.label}...`,
+				keywords: setting.keywords,
+				detail: current?.label,
+				kind: 'parent',
+				children: () =>
+					setting.options.map((o) => ({
+						id: `${setting.id}:${o.value}`,
+						label: o.label,
+						swatches: o.swatches,
+						previewThemeId: o.value,
+						detail: setting.value === o.value ? "✓" : undefined,
+						kind: 'action' as const,
+						action: () => setting.select(o.value),
+					})),
+			};
+		}
 		default: {
 			const _exhaustive: never = setting;
 			throw new Error(`Unknown setting type: ${(_exhaustive as SettingDef).type}`);
@@ -121,6 +150,53 @@ export function buildCommands(ctx: CommandContext): Command[] {
 				action: delta != null
 					? () => zoomSetting.set(zoomSetting.value + delta * zoomSetting.step)
 					: () => zoomSetting.set(zoomSetting.defaultValue),
+			});
+		}
+	}
+
+	// Theme duplicate/delete: separate top-level parents rather than row-actions
+	// inside the theme picker. The palette's rows are single-`onclick`
+	// `div[role=option]` elements with one action each (see
+	// CommandPalette.svelte) — there is no room for a second, destructive
+	// action on the same row without either a second click target (which the
+	// palette's list markup doesn't have) or overloading Enter, where landing
+	// one row off from the intended target would delete the wrong theme. A
+	// separate "Delete theme…" parent makes that mis-selection pick a
+	// different THEME, never a different ACTION.
+	const themeSetting = prefs.settings.find((s): s is ThemeSetting => s.type === "theme");
+	if (themeSetting) {
+		commands.push({
+			id: "duplicate-theme",
+			label: "Duplicate theme...",
+			keywords: ["copy", "theme", "clone"],
+			kind: 'parent',
+			children: () =>
+				themeSetting.options.map((o) => ({
+					id: `duplicate-theme:${o.value}`,
+					label: o.label,
+					swatches: o.swatches,
+					previewThemeId: o.value,
+					kind: 'action' as const,
+					action: () => themeSetting.duplicate(o.value),
+				})),
+		});
+
+		const userOptions = themeSetting.options.filter((o) => o.source === "user");
+		if (userOptions.length > 0) {
+			commands.push({
+				id: "delete-theme",
+				label: "Delete theme...",
+				keywords: ["remove", "theme", "trash"],
+				kind: 'parent',
+				children: () =>
+					userOptions.map((o) => ({
+						id: `delete-theme:${o.value}`,
+						label: o.label,
+						swatches: o.swatches,
+						previewThemeId: o.value,
+						kind: 'action' as const,
+						action: () => themeSetting.remove(o.value),
+					})),
 			});
 		}
 	}

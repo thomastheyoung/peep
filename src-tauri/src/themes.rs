@@ -38,6 +38,27 @@ const MAX_THEME_ID_LEN: usize = 64;
 const THEMES_DIR_NAME: &str = "themes";
 const THEME_EXTENSION: &str = "css";
 
+/// Machine-readable sentinel for an id collision under `ImportMode::CreateNew`.
+/// The frontend matches on this exact string to decide whether to offer a
+/// "Replace" prompt — it must never be folded into a prose error message,
+/// or that match would break the moment the wording changes.
+const THEME_EXISTS: &str = "theme-exists";
+
+/// How `import_theme` should behave when `<id>.css` already exists.
+///
+/// Threaded explicitly (no `#[serde(default)]`) so a caller that omits
+/// `mode` fails the IPC deserialization rather than silently landing on
+/// `Replace` — an accidental overwrite is exactly the failure mode this type
+/// exists to prevent.
+#[derive(serde::Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub enum ImportMode {
+    /// Fail with the `THEME_EXISTS` sentinel if `<id>.css` already exists.
+    CreateNew,
+    /// Overwrite unconditionally. Only sent after the user chose "Replace".
+    Replace,
+}
+
 // Windows reserved device names, rejected on ALL platforms (not just
 // Windows). The theme id is the frontend's registry key, and a config dir
 // synced to a Windows machine (iCloud/Dropbox over `~/Library/Application
@@ -260,7 +281,31 @@ fn scan_themes(dir: &Path) -> Result<Vec<UserThemeFile>, String> {
 /// `set_preferences` in lib.rs. The tmp sibling name is per-id
 /// (`<id>.css.tmp`), so concurrent imports of different ids never collide —
 /// only same-id races need the caller's lock.
-fn import_theme_to(dir: &Path, id: &str, css: &str) -> Result<UserThemeFile, String> {
+///
+/// Check order is deliberate and unchanged from before `mode` existed:
+/// validate the id, then the size cap, and only then (new) the collision
+/// check — so a malformed or oversized request fails for the same reason it
+/// always did, regardless of `mode`.
+///
+/// Under `ImportMode::CreateNew`, collision detection uses
+/// `fs::symlink_metadata` (lstat), NOT `Path::exists()`. `exists()` follows
+/// symlinks and reports `false` for a DANGLING one — `evil.css ->
+/// /nonexistent` would look like "no collision" and the `write_atomic`
+/// rename below would silently replace that symlink entry. `symlink_metadata`
+/// succeeds for ANY directory entry at that path, symlink or not, dangling or
+/// not, so it is the only check that means what "collision" needs it to
+/// mean. Mirrors `delete_theme_from`'s lstat-first ordering above.
+///
+/// Residual TOCTOU, considered and accepted rather than eliminated: between
+/// this `symlink_metadata` check and `write_atomic`'s rename, another writer
+/// could create `<id>.css`, and this call would still overwrite it.
+/// `renameat2(RENAME_NOREPLACE)` would close that gap atomically, but it is
+/// Linux-only with no portable macOS/Windows equivalent, so it is not used
+/// here. What this check DOES buy is real: it shrinks the race from
+/// human-scale (an IPC round trip plus a person reading a "Replace?" dialog)
+/// down to syscall-scale, which is the actual threat this feature exists to
+/// close.
+fn import_theme_to(dir: &Path, id: &str, css: &str, mode: ImportMode) -> Result<UserThemeFile, String> {
     validate_theme_id(id)?;
 
     let bytes = css.as_bytes();
@@ -269,6 +314,11 @@ fn import_theme_to(dir: &Path, id: &str, css: &str) -> Result<UserThemeFile, Str
     }
 
     let target_name = format!("{id}.{THEME_EXTENSION}");
+
+    if mode == ImportMode::CreateNew && fs::symlink_metadata(dir.join(&target_name)).is_ok() {
+        return Err(THEME_EXISTS.into());
+    }
+
     let tmp_name = format!("{target_name}.tmp");
     crate::write_atomic(dir, &tmp_name, &target_name, bytes)
         .map_err(|e| format!("Cannot write theme: {e}"))?;
@@ -361,7 +411,12 @@ pub fn get_user_themes(app: tauri::AppHandle) -> Result<Vec<UserThemeFile>, Stri
 #[tauri::command]
 // Tauri injects `AppHandle` by value; there is no `CommandArg` impl for `&AppHandle`.
 #[allow(clippy::needless_pass_by_value)]
-pub fn import_theme(id: &str, css: &str, app: tauri::AppHandle) -> Result<UserThemeFile, String> {
+pub fn import_theme(
+    id: &str,
+    css: &str,
+    mode: ImportMode,
+    app: tauri::AppHandle,
+) -> Result<UserThemeFile, String> {
     let dir = themes_dir(&app)?;
     let state = app.state::<crate::AppState>();
     let guard = state
@@ -369,7 +424,7 @@ pub fn import_theme(id: &str, css: &str, app: tauri::AppHandle) -> Result<UserTh
         .lock
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let result = import_theme_to(&dir, id, css);
+    let result = import_theme_to(&dir, id, css, mode);
     drop(guard);
     result
 }
@@ -596,7 +651,9 @@ mod tests {
     #[test]
     fn import_then_scan_round_trips() {
         let dir = TestDir::new("peep_test_themes_roundtrip");
-        let created = import_theme_to(dir.path(), "my-theme", "body { color: red; }").unwrap();
+        let created =
+            import_theme_to(dir.path(), "my-theme", "body { color: red; }", ImportMode::CreateNew)
+                .unwrap();
         assert_eq!(created.id, "my-theme");
         assert_eq!(created.css, "body { color: red; }");
         assert!(created.revision > 0);
@@ -611,8 +668,8 @@ mod tests {
     #[test]
     fn import_over_existing_id_replaces_and_leaves_no_tmp() {
         let dir = TestDir::new("peep_test_themes_replace");
-        import_theme_to(dir.path(), "dup", "first").unwrap();
-        import_theme_to(dir.path(), "dup", "second").unwrap();
+        import_theme_to(dir.path(), "dup", "first", ImportMode::CreateNew).unwrap();
+        import_theme_to(dir.path(), "dup", "second", ImportMode::Replace).unwrap();
 
         let scanned = scan_themes(dir.path()).unwrap();
         assert_eq!(scanned.len(), 1);
@@ -621,22 +678,66 @@ mod tests {
     }
 
     #[test]
+    fn import_create_new_over_existing_id_errors_and_leaves_file_intact() {
+        let dir = TestDir::new("peep_test_themes_create_new_collision");
+        import_theme_to(dir.path(), "dup", "first", ImportMode::CreateNew).unwrap();
+
+        let err = import_theme_to(dir.path(), "dup", "second", ImportMode::CreateNew).unwrap_err();
+        assert_eq!(err, THEME_EXISTS);
+
+        // Not just "errored" — the original content must be untouched, and
+        // no tmp sibling left behind by an aborted write.
+        let scanned = scan_themes(dir.path()).unwrap();
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].css, "first");
+        assert!(!dir.path().join("dup.css.tmp").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn import_create_new_over_dangling_symlink_is_treated_as_a_collision() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TestDir::new("peep_test_themes_create_new_dangling_symlink");
+        symlink(
+            dir.path().join("does-not-exist-at-all"),
+            dir.path().join("dangling.css"),
+        )
+        .unwrap();
+
+        // `Path::exists()` follows symlinks and would report `false` here,
+        // wrongly declaring no collision. `symlink_metadata` (lstat) is what
+        // this test pins: the mode value alone is not what fails you, it's
+        // if `symlink_metadata` gets simplified to `exists()`.
+        let err =
+            import_theme_to(dir.path(), "dangling", "body {}", ImportMode::CreateNew).unwrap_err();
+        assert_eq!(err, THEME_EXISTS);
+
+        // The dangling symlink itself must survive untouched — CreateNew
+        // must not have written through it.
+        let meta = fs::symlink_metadata(dir.path().join("dangling.css")).unwrap();
+        assert!(meta.file_type().is_symlink());
+    }
+
+    #[test]
     fn import_rejects_cap_plus_one_and_accepts_exactly_at_cap() {
         let dir = TestDir::new("peep_test_themes_size_cap");
         let cap = usize::try_from(MAX_THEME_BYTES).unwrap();
 
         let at_cap = "a".repeat(cap);
-        assert!(import_theme_to(dir.path(), "at-cap", &at_cap).is_ok());
+        assert!(import_theme_to(dir.path(), "at-cap", &at_cap, ImportMode::CreateNew).is_ok());
 
         let over_cap = "a".repeat(cap + 1);
-        assert!(import_theme_to(dir.path(), "over-cap", &over_cap).is_err());
+        assert!(
+            import_theme_to(dir.path(), "over-cap", &over_cap, ImportMode::CreateNew).is_err()
+        );
         assert!(!dir.path().join("over-cap.css").exists());
     }
 
     #[test]
     fn delete_removes_file() {
         let dir = TestDir::new("peep_test_themes_delete");
-        import_theme_to(dir.path(), "gone-soon", "body {}").unwrap();
+        import_theme_to(dir.path(), "gone-soon", "body {}", ImportMode::CreateNew).unwrap();
         assert!(dir.path().join("gone-soon.css").exists());
 
         delete_theme_from(dir.path(), "gone-soon").unwrap();
@@ -682,7 +783,7 @@ mod tests {
     fn scan_results_are_sorted_by_id() {
         let dir = TestDir::new("peep_test_themes_sorted");
         for id in ["zeta", "alpha", "mid"] {
-            import_theme_to(dir.path(), id, "body {}").unwrap();
+            import_theme_to(dir.path(), id, "body {}", ImportMode::CreateNew).unwrap();
         }
         let scanned = scan_themes(dir.path()).unwrap();
         let ids: Vec<&str> = scanned.iter().map(|t| t.id.as_str()).collect();
@@ -729,7 +830,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let dir = TestDir::new("peep_test_themes_symlink_inside");
-        import_theme_to(dir.path(), "real", "body {}").unwrap();
+        import_theme_to(dir.path(), "real", "body {}", ImportMode::CreateNew).unwrap();
         symlink(dir.path().join("real.css"), dir.path().join("alias.css")).unwrap();
 
         let err = delete_theme_from(dir.path(), "alias").unwrap_err();
@@ -768,7 +869,7 @@ mod tests {
         fs::write(&outside, "OUTSIDE CONTENT").unwrap();
         fs::hard_link(&outside, dir.path().join("linked.css")).unwrap();
 
-        import_theme_to(dir.path(), "linked", "body { color: red; }").unwrap();
+        import_theme_to(dir.path(), "linked", "body { color: red; }", ImportMode::Replace).unwrap();
 
         // The rename replaced the directory entry; the other name for the
         // original inode is untouched.
@@ -782,7 +883,7 @@ mod tests {
     #[test]
     fn revision_equals_independently_computed_mtime_millis() {
         let dir = TestDir::new("peep_test_themes_revision");
-        let created = import_theme_to(dir.path(), "timed", "body {}").unwrap();
+        let created = import_theme_to(dir.path(), "timed", "body {}", ImportMode::CreateNew).unwrap();
 
         let expected = revision_millis(&fs::metadata(dir.path().join("timed.css")).unwrap());
         assert_eq!(created.revision, expected);

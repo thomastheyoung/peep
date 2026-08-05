@@ -236,6 +236,101 @@ function parseFrontmatterFields(block: string): Partial<ThemeFrontmatter> {
 	return fields;
 }
 
+/**
+ * Rewrite (or introduce) a theme CSS file's frontmatter `@name` field.
+ *
+ * Exists because duplicating a theme without rewriting its frontmatter
+ * produces two identically-labelled cards in the theme picker — `id`s are
+ * disambiguated by `resolveThemeId`, but the *display name* users actually
+ * read comes from `@name`, which `deriveImportId`/`user-theme.ts` both read
+ * straight off the copied file. `nameThemeFlow` (preferences.svelte.ts)
+ * applies this to the source CSS before writing the copy, so the new card is
+ * labelled with whatever the user typed rather than the original's name.
+ *
+ * Three shapes, each handled without disturbing anything else in the file:
+ *  - Frontmatter present WITH `@name`: only that line's value is replaced,
+ *    using the SAME anchored `^[\s*]*@name[ \t]+(.+)$` / `m` pattern
+ *    `parseFrontmatterFields` reads with — see its doc comment for why an
+ *    unanchored match is a correctness bug, not a style preference. Matching
+ *    with the identical pattern (rather than something merely "close enough")
+ *    is what guarantees this function rewrites the exact line that function
+ *    would have read, including under the adversarial input each guards
+ *    against (a `@name`-looking string inside `@description`'s value).
+ *  - Frontmatter present WITHOUT `@name`: a new `@name` line is inserted at
+ *    the top of the existing block, leaving `@description`/`@author`/unknown
+ *    fields untouched.
+ *  - No frontmatter block at all (per `frontmatterBlock`'s own 4KB-window,
+ *    first-block-only rules): a new minimal block is prepended.
+ *
+ * `name` is user-typed text embedded inside a `/*! … *\/` CSS comment, and it
+ * gets TWO escapes beyond `parseFrontmatterFields`'s control-char strip and
+ * length cap. Both were found by review after an earlier version of this
+ * comment argued, wrongly, that neither was needed:
+ *
+ *  1. **`*\/` is removed.** The earlier reasoning was that `*` and `/` "cannot
+ *     close a block comment without the other adjacent" — true, and irrelevant,
+ *     because the user can simply TYPE the two characters adjacent. Measured:
+ *     a name of `Evil *\/ .app{display:none} /*` ended the comment early and
+ *     left a live CSS rule in the file, swallowing `@description`/`@author`
+ *     into a reopened comment. `parseThemeCss` then rejects the user's own
+ *     theme file. Not XSS — `sanitizeThemeCss` still wraps everything at load
+ *     — but it silently corrupts a file the user hand-authored.
+ *  2. **The rewrite goes through a replacer FUNCTION, not a string.**
+ *     `String.replace` interprets `$1`, `$&`, `` $` `` and `$'` in the
+ *     REPLACEMENT, so a name of `$&` resurrected the previous name and
+ *     `A$1B$&C` duplicated the whole block. Only the rewrite branch was
+ *     affected; the insert branch below uses plain interpolation, which is why
+ *     a test over frontmatter-less CSS would not have caught it.
+ *
+ * Length-capping matters independently: an unbounded name would blow out both
+ * this block and the `.theme-grid` layout.
+ */
+export function withFrontmatterName(css: string, name: string): string {
+	// Strip BOTH comment delimiters after the control-char/length pass. `*/`
+	// is the escape itself (rule 1 above). `/*` has to go too: a lone opener
+	// left inside the block does not escape it — CSS comments do not nest, so
+	// the browser still ends the comment at the first `*/` — but it desyncs
+	// this file's own frontmatter scanner, and a theme named
+	// `Evil */ .app{display:none} /*` came back `ok: false` with
+	// `unresolved-channel: bg` even after the closer was removed. A theme NAME
+	// has no legitimate use for either sequence, so removing both is free.
+	const safeName =
+		sanitizeField(name, MAX_NAME_LENGTH).replace(/\*\/|\/\*/g, "") || "Untitled";
+
+	const match = css.match(/\/\*!([\s\S]*?)\*\//);
+	const hasBlock = match && match.index !== undefined && match.index < FRONTMATTER_SCAN_WINDOW;
+
+	if (!hasBlock) {
+		return `/*! @name ${safeName} */\n${css}`;
+	}
+
+	// `match.index`/`match[0]` are guaranteed by `hasBlock` above (both parts
+	// of the `&&` reference the same `match`), but TS can't see that guarantee
+	// survive past the `if`, so re-derive locally rather than asserting past it.
+	const blockStart = match.index as number;
+	const blockBody = match[1] ?? "";
+	const blockFullMatch = match[0];
+	const bodyOffset = blockStart + "/*!".length;
+
+	const nameLineRe = /^([\s*]*@name[ \t]+).+$/m;
+	const nameLineMatch = blockBody.match(nameLineRe);
+
+	let newBody: string;
+	if (nameLineMatch) {
+		// Replacer FUNCTION, not a replacement string — see rule 2 above. A
+		// string here would interpret `$1`/`$&`/`` $` ``/`$'` inside safeName.
+		newBody = blockBody.replace(nameLineRe, (_full, prefix: string) => `${prefix}${safeName}`);
+	} else {
+		// No @name line to rewrite — insert one at the top of the block body,
+		// ahead of whatever fields (or prose) are already there.
+		newBody = ` @name ${safeName}\n${blockBody}`;
+	}
+
+	const before = css.slice(0, bodyOffset);
+	const after = css.slice(blockStart + blockFullMatch.length);
+	return `${before}${newBody}*/${after}`;
+}
+
 const FRONTMATTER_KEYS: readonly (keyof ThemeFrontmatter)[] = ["name", "description", "author"];
 
 /**

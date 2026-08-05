@@ -101,6 +101,15 @@ export interface ThemeStateAPI {
 	readonly id: ThemeId;
 	readonly css: string;
 	readonly all: readonly ThemeMeta[];
+	/**
+	 * The default theme id — `builtinThemes[0]`'s id, per the ordering
+	 * invariant documented on `DEFAULT_THEME_ID` above. Exposed here rather
+	 * than re-derived at call sites (e.g. `preferences.svelte.ts`'s
+	 * delete-a-user-theme flow, which must switch to the default BEFORE
+	 * deleting) so the "index 0 is the default" fact is asserted in exactly
+	 * one place, matching this file's own comment on `DEFAULT_THEME_ID`.
+	 */
+	readonly defaultId: ThemeId;
 	setTheme(id: ThemeId): Promise<void>;
 	init(): Promise<void>;
 }
@@ -117,6 +126,9 @@ export const themeState: ThemeStateAPI = {
 	},
 	get all() {
 		return allThemes;
+	},
+	get defaultId() {
+		return DEFAULT_THEME_ID;
 	},
 	async setTheme(id: ThemeId) {
 		const meta = allThemes.find((t) => t.id === id);

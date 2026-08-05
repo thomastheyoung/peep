@@ -103,19 +103,70 @@ describe("ipc: user theme commands", () => {
 	});
 
 	describe("importThemeCss", () => {
-		it("invokes import_theme with id and css, returning the stored file", async () => {
+		it("invokes import_theme with id, css, and mode, returning ok:true with the stored file", async () => {
 			const stored = { id: "ink", path: "/themes/ink.css", revision: 1, css: ".app{}" };
 			mockInvoke.mockResolvedValue(stored);
 
-			await expect(importThemeCss("ink", ".app{}")).resolves.toEqual(stored);
-			expect(mockInvoke).toHaveBeenCalledWith("import_theme", { id: "ink", css: ".app{}" });
+			await expect(importThemeCss("ink", ".app{}", "create-new")).resolves.toEqual({
+				ok: true,
+				file: stored,
+			});
+			expect(mockInvoke).toHaveBeenCalledWith("import_theme", {
+				id: "ink",
+				css: ".app{}",
+				mode: "create-new",
+			});
 		});
 
-		// The import UI needs to know a write failed so it can show a toast
-		// rather than silently pretending the theme was installed.
-		it("propagates rejection instead of swallowing it", async () => {
-			mockInvoke.mockRejectedValue(new Error("invalid id"));
-			await expect(importThemeCss("bad id", ".app{}")).rejects.toThrow("invalid id");
+		it("passes the mode through verbatim for replace", async () => {
+			const stored = { id: "ink", path: "/themes/ink.css", revision: 2, css: ".app{}" };
+			mockInvoke.mockResolvedValue(stored);
+
+			await importThemeCss("ink", ".app{}", "replace");
+			expect(mockInvoke).toHaveBeenCalledWith("import_theme", {
+				id: "ink",
+				css: ".app{}",
+				mode: "replace",
+			});
+		});
+
+		// The Rust side rejects with the exact string "theme-exists" (see
+		// themes.rs's THEME_EXISTS sentinel) when mode is "create-new" and the id
+		// already exists on disk. This is the one case importThemeCss maps to a
+		// resolved value instead of surfacing it as a generic failure — the
+		// caller needs to distinguish "expected collision, offer Replace" from
+		// "something actually broke."
+		it("maps the theme-exists sentinel to reason:'exists'", async () => {
+			mockInvoke.mockRejectedValue("theme-exists");
+			await expect(importThemeCss("dup", ".app{}", "create-new")).resolves.toEqual({
+				ok: false,
+				reason: "exists",
+			});
+		});
+
+		// Any other rejection (invalid id, oversized payload, disk full, IPC
+		// channel down) must NOT be swallowed or misreported as a collision —
+		// the import UI needs the message to show a toast rather than silently
+		// pretending the theme was installed.
+		it("maps any other error to reason:'failed' with the message preserved", async () => {
+			mockInvoke.mockRejectedValue(new Error("Theme CSS payload too large"));
+			await expect(importThemeCss("bad", ".app{}", "create-new")).resolves.toEqual({
+				ok: false,
+				reason: "failed",
+				message: "Theme CSS payload too large",
+			});
+		});
+
+		// Real Tauri `Result<T, String>` commands reject with the bare string,
+		// not an Error instance — cover that shape too, not just Error-wrapped
+		// rejections a test might reach for out of habit.
+		it("maps a plain-string rejection (other than theme-exists) to reason:'failed'", async () => {
+			mockInvoke.mockRejectedValue("Cannot write theme: permission denied");
+			await expect(importThemeCss("bad", ".app{}", "create-new")).resolves.toEqual({
+				ok: false,
+				reason: "failed",
+				message: "Cannot write theme: permission denied",
+			});
 		});
 	});
 

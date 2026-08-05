@@ -20,6 +20,7 @@
 	import Preferences from "$lib/components/Preferences.svelte";
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
 	import Toast from "$lib/components/Toast.svelte";
+	import Prompt from "$lib/components/Prompt.svelte";
 	import "$lib/themes/base.css";
 	import "katex/dist/katex.min.css";
 
@@ -342,6 +343,7 @@
 <Preferences />
 <CommandPalette />
 <Toast />
+<Prompt />
 
 <div
 	class="app"

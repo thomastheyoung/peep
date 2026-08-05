@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { buildCommands, type Command } from "./commands";
-import type { SettingDef, ChoiceSetting, RangeSetting } from "./preferences.svelte";
+import type { SettingDef, ChoiceSetting, RangeSetting, ThemeSetting } from "./preferences.svelte";
 
 function mockChoiceSetting(overrides: Partial<ChoiceSetting> = {}): ChoiceSetting {
 	return {
@@ -21,6 +21,25 @@ function mockChoiceSetting(overrides: Partial<ChoiceSetting> = {}): ChoiceSettin
 		],
 		value: "a",
 		select: vi.fn(),
+		...overrides,
+	};
+}
+
+function mockThemeSetting(overrides: Partial<ThemeSetting> = {}): ThemeSetting {
+	return {
+		type: "theme",
+		id: "theme",
+		label: "Theme",
+		section: "appearance",
+		keywords: ["color"],
+		options: [
+			{ value: "github-dark", label: "GitHub Dark", swatches: { bg: "#000", text: "#fff", accent: "#0ff" }, source: "builtin", actions: ["duplicate"] },
+			{ value: "ink", label: "Ink", swatches: { bg: "#fff", text: "#000", accent: "#f00" }, source: "user", path: "/themes/ink.css", revision: 1, actions: ["duplicate", "delete"] },
+		],
+		value: "github-dark",
+		select: vi.fn(),
+		remove: vi.fn(),
+		duplicate: vi.fn(),
 		...overrides,
 	};
 }
@@ -169,6 +188,86 @@ describe("buildCommands", () => {
 			child.action();
 
 			expect(setting.select).toHaveBeenCalledWith("b");
+		});
+	});
+
+	describe("theme setting → theme command", () => {
+		it("creates a parent command with a child per theme option, carrying swatches and previewThemeId", () => {
+			const setting = mockThemeSetting();
+			const commands = buildCommands(mockContext([setting]));
+			const cmd = commands.find((c) => c.id === "theme")!;
+			expect(cmd.kind).toBe("parent");
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+
+			const children = cmd.children();
+			expect(children).toHaveLength(2);
+			const inkChild = children.find((c) => c.id === "theme:ink")!;
+			expect(inkChild.swatches).toEqual({ bg: "#fff", text: "#000", accent: "#f00" });
+			expect(inkChild.previewThemeId).toBe("ink");
+		});
+
+		it("child action calls select with the option's value", () => {
+			const setting = mockThemeSetting();
+			const commands = buildCommands(mockContext([setting]));
+			const cmd = commands.find((c) => c.id === "theme")!;
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+			const child = cmd.children().find((c) => c.id === "theme:ink")!;
+			if (child.kind !== "action") throw new Error("expected action");
+			child.action();
+
+			expect(setting.select).toHaveBeenCalledWith("ink");
+		});
+	});
+
+	describe("duplicate-theme / delete-theme parents", () => {
+		it("duplicate-theme lists every theme (builtin and user) and calls duplicate", () => {
+			const setting = mockThemeSetting();
+			const commands = buildCommands(mockContext([setting]));
+			const cmd = commands.find((c) => c.id === "duplicate-theme")!;
+			expect(cmd.kind).toBe("parent");
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+
+			const children = cmd.children();
+			expect(children.map((c) => c.previewThemeId)).toEqual(["github-dark", "ink"]);
+
+			const child = children.find((c) => c.previewThemeId === "github-dark")!;
+			if (child.kind !== "action") throw new Error("expected action");
+			child.action();
+			expect(setting.duplicate).toHaveBeenCalledWith("github-dark");
+		});
+
+		it("delete-theme lists ONLY user themes and calls remove", () => {
+			const setting = mockThemeSetting();
+			const commands = buildCommands(mockContext([setting]));
+			const cmd = commands.find((c) => c.id === "delete-theme")!;
+			expect(cmd.kind).toBe("parent");
+			if (cmd.kind !== "parent") throw new Error("expected parent");
+
+			const children = cmd.children();
+			expect(children.map((c) => c.previewThemeId)).toEqual(["ink"]); // github-dark excluded
+
+			const child = children[0]!;
+			if (child.kind !== "action") throw new Error("expected action");
+			child.action();
+			expect(setting.remove).toHaveBeenCalledWith("ink");
+		});
+
+		it("omits delete-theme entirely when there are no user themes", () => {
+			const setting = mockThemeSetting({
+				options: [
+					{ value: "github-dark", label: "GitHub Dark", swatches: { bg: "#000", text: "#fff", accent: "#0ff" }, source: "builtin", actions: ["duplicate"] },
+				],
+			});
+			const commands = buildCommands(mockContext([setting]));
+			expect(commands.map((c) => c.id)).not.toContain("delete-theme");
+			// duplicate-theme still offered — every theme, including builtins, can be duplicated.
+			expect(commands.map((c) => c.id)).toContain("duplicate-theme");
+		});
+
+		it("omits both when there is no theme setting at all", () => {
+			const commands = buildCommands(mockContext([]));
+			expect(commands.map((c) => c.id)).not.toContain("duplicate-theme");
+			expect(commands.map((c) => c.id)).not.toContain("delete-theme");
 		});
 	});
 
