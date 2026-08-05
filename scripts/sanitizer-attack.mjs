@@ -39,7 +39,12 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { chromium, webkit } from "playwright";
+
+// This file is ESM, so `require` is not ambient — but `require.resolve` is the
+// only API that answers "where did the package manager actually put this?".
+const require = createRequire(import.meta.url);
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO, "src/lib/themes/sanitize-theme-css.ts");
@@ -100,6 +105,31 @@ function loadSanitizerAsScript() {
 }
 
 /**
+ * Locate the `esbuild` binary through Node's resolver.
+ *
+ * NOT `node_modules/.bin/esbuild`. That path is a hoisting artifact: under
+ * pnpm's isolated layout a package lives at a content-addressed store path and
+ * only appears in the flat `.bin/` when something hoists it there. It happened
+ * to be present locally because Vite pulls esbuild in transitively — and was
+ * ABSENT on a clean CI install, which is exactly the state a developer machine
+ * cannot reproduce. `esbuild` is now an explicit devDependency (this harness
+ * uses it directly, so it should declare it rather than borrow Vite's copy),
+ * and resolving through `require.resolve` means the lookup follows the same
+ * rules the package manager guarantees.
+ */
+function esbuildBin() {
+	try {
+		// The package root, then its declared binary — `require.resolve` on the
+		// package itself lands on its main entry, not the executable.
+		const pkg = require.resolve("esbuild/package.json");
+		return join(dirname(pkg), "bin", "esbuild");
+	} catch {
+		console.error("esbuild could not be resolved — run `pnpm install`");
+		process.exit(2);
+	}
+}
+
+/**
  * Load the REAL HTML sanitizer as browser-executable JS (markdown-viewer-r74).
  *
  * Unlike the CSS sanitizer above, this module imports DOMPurify, so stripping
@@ -116,14 +146,9 @@ function loadHtmlSanitizerAsScript() {
 		console.error(`HTML sanitizer source not found: ${HTML_SRC}`);
 		process.exit(2);
 	}
-	const bin = join(REPO, "node_modules/.bin/esbuild");
-	if (!existsSync(bin)) {
-		console.error(`esbuild not found at ${bin} — run \`pnpm install\``);
-		process.exit(2);
-	}
 	try {
 		return execFileSync(
-			bin,
+			esbuildBin(),
 			[
 				HTML_SRC,
 				"--bundle",
@@ -181,10 +206,9 @@ function mermaidSecurityLevel() {
  * the app ships, offline, with no network dependency in CI.
  */
 function loadMermaidAsScript() {
-	const bin = join(REPO, "node_modules/.bin/esbuild");
 	try {
 		return execFileSync(
-			bin,
+			esbuildBin(),
 			[
 				"--bundle",
 				"--format=iife",
@@ -192,7 +216,12 @@ function loadMermaidAsScript() {
 				"--platform=browser",
 				"--log-level=error",
 				"--define:process.env.NODE_ENV=\"production\"",
-				join(REPO, "node_modules/mermaid/dist/mermaid.esm.mjs"),
+				// Resolved through Node rather than joined onto a hardcoded
+				// `node_modules/mermaid/...` path — under pnpm's isolated layout
+				// a package's real location is a content-addressed store path,
+				// and the flat path only exists when hoisting happens to put it
+				// there.
+				require.resolve("mermaid/dist/mermaid.esm.mjs"),
 			],
 			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 },
 		);
