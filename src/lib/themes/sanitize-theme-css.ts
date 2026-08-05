@@ -17,7 +17,7 @@
  * and a sanitizer bugfix should retroactively protect already-installed
  * themes rather than requiring re-import.
  *
- * DESIGN — see markdown-viewer-gfi for the full measurement record. The short
+ * DESIGN — see peep-gfi for the full measurement record. The short
  * version: an earlier string-rewriting design was measured to be defeated in
  * real Chromium and WebKit two different ways (a brace escape that produces
  * balanced-but-wrapper-breaking output, and a CSS ident escape invisible to
@@ -282,10 +282,17 @@ type HoistedTokens = Map<string, string>;
 
 /**
  * A declaration is eligible for hoisting when its rule's selector targets
- * the scope root itself. All 22 built-in themes set `--md-*` on `.app`
- * (base.css:140-148), and a theme may also reasonably reach for `:root` —
- * both resolve to "the page surface" once `@scope` narrows everything to
- * `.markdown-body`'s ancestor chain, so both are accepted.
+ * the scope root itself. `.app` is where the token vocabulary is consumed
+ * (see the `.app` rule in base.css, ~line 144), so it is where a theme
+ * declaring `--md-*` puts them; a theme may also reasonably reach for
+ * `:root`. Both resolve to "the page surface" once `@scope` narrows
+ * everything to `.markdown-body`'s ancestor chain, so both are accepted.
+ *
+ * Stated as a property of the selectors rather than of how many themes use
+ * them: that is what makes the rule correct, and a count here would rot the
+ * next time the bundled set changes (it already did — this said "all 22
+ * built-in themes" when 7 ship and only the two GitHub themes are
+ * token-only).
  */
 function targetsScopeRoot(selectorText: string): boolean {
 	return selectorText
