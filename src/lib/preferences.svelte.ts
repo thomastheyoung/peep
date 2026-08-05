@@ -356,7 +356,7 @@ async function setThemeValue(id: ThemeId) {
 /**
  * Apply `candidateId` if it resolves against the (successfully) discovered
  * registry, otherwise fall back to the default theme AND PERSIST that
- * fallback (markdown-viewer-zm6). Callers MUST only reach this after a
+ * fallback (peep-zm6). Callers MUST only reach this after a
  * `discover()` call has reported `scanned: true` — this function has no way
  * to tell "genuinely gone" from "couldn't check," so calling it on a failed
  * scan would silently reintroduce the exact data loss `unverifiedThemeId`
@@ -522,7 +522,7 @@ function suggestThemeName(sourceName: string, taken: ReadonlySet<string>): strin
 }
 
 /**
- * Shared "name this theme" flow (markdown-viewer-2ha): prompts for a NAME
+ * Shared "name this theme" flow (peep-2ha): prompts for a NAME
  * (not an id — the field derives an id via `slugifyThemeId`, matching how
  * `deriveImportId` in Preferences.svelte already prefers frontmatter `@name`
  * over a filename), rewrites the CSS frontmatter to match via

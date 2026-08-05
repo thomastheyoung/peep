@@ -47,7 +47,7 @@ export interface BuiltinTheme<Id extends string = string> extends ThemeMetaBase<
 }
 
 /**
- * A theme imported by the user from disk (markdown-viewer-bnw/e9b). Forward
+ * A theme imported by the user from disk (peep-bnw/e9b). Forward
  * looking — nothing constructs one of these yet.
  *
  * - `path` is the source file on disk, for a "Reveal in Finder" action.

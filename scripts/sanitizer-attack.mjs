@@ -130,7 +130,7 @@ function esbuildBin() {
 }
 
 /**
- * Load the REAL HTML sanitizer as browser-executable JS (markdown-viewer-r74).
+ * Load the REAL HTML sanitizer as browser-executable JS (peep-r74).
  *
  * Unlike the CSS sanitizer above, this module imports DOMPurify, so stripping
  * types is not enough — the import has to be resolved. esbuild (already a
@@ -646,7 +646,7 @@ async function run(engineName, engine) {
 		keeperResults.push({ id, ...r });
 	}
 
-	// ---- HTML sanitizer suite (markdown-viewer-r74) -----------------------
+	// ---- HTML sanitizer suite (peep-r74) -----------------------
 	// Runs in the same page so it shares the real chrome fixture, and so the
 	// overlay attacks below are hit-tested against the SAME `contain: content`
 	// rule the theme attacks use.

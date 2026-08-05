@@ -1,5 +1,5 @@
 /**
- * Tests for the theme CSS sanitizer (markdown-viewer-gfi).
+ * Tests for the theme CSS sanitizer (peep-gfi).
  *
  * ENVIRONMENT CAPABILITY, MEASURED — READ BEFORE ADDING ASSERTIONS
  * -----------------------------------------------------------------
@@ -62,7 +62,7 @@
  *     that property, not a specific rule count.
  *
  * THE REAL-BROWSER HARNESS this suite defers to (built by a sibling stream,
- * see markdown-viewer-gfi's DESIGN note) is where the following MUST also be
+ * see peep-gfi's DESIGN note) is where the following MUST also be
  * verified before this feature is considered proven end to end:
  *   - `@font-face` `url()` survival (neo-brutalist, minimal-mono).
  *   - `@property` registration actually failing to leak past `@scope` in a

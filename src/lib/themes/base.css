@@ -46,7 +46,7 @@
    `theme`. Layer order beats specificity, so none of these need !important.
 
    `user` sorts last, below only the unlayered app chrome. The sanitizer
-   (markdown-viewer-gfi) wraps an imported theme's CSS in `@layer user` before
+   (peep-gfi) wraps an imported theme's CSS in `@layer user` before
    it reaches the page, so a user theme overrides every built-in theme without
    needing higher specificity to do it.
 

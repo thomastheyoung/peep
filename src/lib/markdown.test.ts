@@ -99,7 +99,7 @@ describe("isLatestRender (generation tracking)", () => {
 });
 
 /**
- * End-to-end assertions over the REAL pipeline (markdown-viewer-r74).
+ * End-to-end assertions over the REAL pipeline (peep-r74).
  *
  * These live here rather than in `sanitize-html.test.ts` deliberately. That
  * suite feeds the sanitizer hand-written HTML, which is why it did not catch

@@ -596,7 +596,7 @@ describe("preferences", () => {
 		});
 	});
 
-	// markdown-viewer-bnw / zm6: theme discovery must complete before init()
+	// peep-bnw / zm6: theme discovery must complete before init()
 	// decides whether a stored theme id is valid, and the persistence
 	// consequence of a FAILED scan must differ from a scan that legitimately
 	// found nothing.
@@ -702,7 +702,7 @@ describe("preferences", () => {
 		});
 	});
 
-	// markdown-viewer-e9b/y0z: a theme file can be deleted, renamed, or edited
+	// peep-e9b/y0z: a theme file can be deleted, renamed, or edited
 	// on disk at any point mid-session, not only at launch — the
 	// `user-themes-changed` watcher calls this after every debounced
 	// re-discovery. Uses the SAME fallback-and-persist rule as init()'s
@@ -897,7 +897,7 @@ describe("preferences", () => {
 		// to prevent. This is what pins "clamp without persisting" for the
 		// NUMERIC fields specifically.
 		//
-		// This payload has no `theme` key, so — as of markdown-viewer-zm6 (see
+		// This payload has no `theme` key, so — as of peep-zm6 (see
 		// the "theme discovery ordering" describe block above) — init() DOES
 		// write once, via applyResolvedTheme's fallback-and-persist branch. That
 		// write is correct and intended, not a normalization leak: it is
@@ -926,7 +926,7 @@ describe("preferences", () => {
 		});
 	});
 
-	// markdown-viewer-zm6 / 2ha: deleting a user theme. Ordering is the whole
+	// peep-zm6 / 2ha: deleting a user theme. Ordering is the whole
 	// point (see the doc comment on removeThemeValue in preferences.svelte.ts)
 	// — switch away from the theme being deleted BEFORE calling deleteUserTheme,
 	// never after, and restore the previous theme if the delete call fails.
@@ -1120,7 +1120,7 @@ describe("preferences", () => {
 			await dupPromise;
 
 			// nameThemeFlow rewrites the frontmatter @name to match the typed
-			// name (markdown-viewer-2ha) before writing, so the CSS handed to
+			// name (peep-2ha) before writing, so the CSS handed to
 			// importThemeCss is no longer the source's raw, unlabelled string.
 			expect(mockImportThemeCss).toHaveBeenCalledWith(
 				"my-copy",

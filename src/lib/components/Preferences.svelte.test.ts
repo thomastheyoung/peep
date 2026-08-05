@@ -30,7 +30,7 @@ if (typeof HTMLDialogElement !== "undefined") {
  * ThemePreview.svelte.test.ts and reused here).
  *
  * This suite isolates the theme-IMPORT UI specifically (file picker +
- * clipboard paste, added in markdown-viewer-bnw's final commit). The rest of
+ * clipboard paste, added in peep-bnw's final commit). The rest of
  * Preferences.svelte's behavior (settings registry rendering, panel
  * open/close) has no dedicated test file yet and is out of scope here —
  * `$lib/preferences.svelte` is mocked down to exactly the surface this

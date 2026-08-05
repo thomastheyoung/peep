@@ -646,7 +646,7 @@ describe("real theme files", () => {
 // The repo-root gallery theme files (`themes/`, not `src/lib/themes/themes/`).
 //
 // These are the 15 themes moved out of the bundled registry to become a
-// browsable, importable gallery (markdown-viewer-rgm) — and until this block,
+// browsable, importable gallery (peep-rgm) — and until this block,
 // they had zero test coverage despite being exactly the files a user's
 // "Import theme…" flow will feed through this same parser. Read from disk
 // with `node:fs` for the same reason as the builtin block above: vitest's
@@ -677,7 +677,7 @@ describe("gallery theme files", () => {
 		expect(r.ok).toBe(true);
 	});
 
-	// Permanent regression guard for the markdown-viewer-rgm font-stack rewrite:
+	// Permanent regression guard for the peep-rgm font-stack rewrite:
 	// no gallery theme may reference the app's own `/fonts/` directory. Those
 	// woff2 files are for the bundled registry; a gallery theme that pointed at
 	// them would 404 for anyone who imports it outside this repo.

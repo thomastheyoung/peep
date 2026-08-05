@@ -11,7 +11,7 @@
 	// under src/. These generators produce COMMITTED artifacts
 	// (theme-colors.ts, theme-meta.ts, themes/README.md), so an error here
 	// surfaces on the next contributor's machine rather than in CI.
-	// See markdown-viewer-sg1; the *.test.ts half of that issue stays open.
+	// See peep-sg1; the *.test.ts half of that issue stays open.
 	"compilerOptions": {
 		"target": "ES2023",
 		"module": "ESNext",
