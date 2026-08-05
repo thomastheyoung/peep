@@ -53,6 +53,16 @@ async function doProcess(container: HTMLElement) {
 		startOnLoad: false,
 		theme: dark ? "dark" : "default",
 		fontFamily: "inherit",
+		// "strict" is mermaid's default, stated explicitly because it is the
+		// ONLY thing sanitizing the SVG assigned via innerHTML below — see the
+		// comment at that assignment. Measured: under strict,
+		// `click A "javascript:alert(1)"` emits an <a> with the href STRIPPED,
+		// and a label of `<img src=x onerror=...>` yields neither an onerror
+		// attribute nor an <img>. Under "loose" both survive. A silent upstream
+		// default change would therefore be a silent XSS regression, so the
+		// tier-2 harness asserts on the stripped href to keep this line
+		// non-deletable.
+		securityLevel: "strict",
 	});
 
 	for (const el of pending) {
@@ -63,8 +73,22 @@ async function doProcess(container: HTMLElement) {
 			const id = `mermaid-${++renderCounter}`;
 			const { svg } = await mermaid.render(id, source);
 			el.setAttribute("data-source", source);
-			// Mermaid-generated SVG — same trust level as marked HTML output
-			// already rendered via {@html} in the page component
+			// Mermaid-generated SVG, sanitized AT SOURCE by mermaid's own
+			// `securityLevel: "strict"` (set explicitly above) — not by
+			// `sanitize-html.ts`, which markdown output goes through.
+			//
+			// This is a deliberate second trust boundary, not an oversight. The
+			// SVG is produced asynchronously here, long after `renderMarkdown`
+			// returned, so it cannot use that choke point. Wrapping it in
+			// DOMPurify anyway would need a second, SVG-permissive config:
+			// every mermaid diagram carries a ~4KB <style> element holding its
+			// entire visual styling, and `FORBID_TAGS: ["style"]` would blank
+			// every diagram in the app. Adding a weaker outer layer around a
+			// stronger inner one buys nothing and costs a config to maintain.
+			//
+			// NOTE this comment previously read "same trust level as marked HTML
+			// output" — that is now FALSE. Markdown output IS sanitized; this
+			// path is not, and depends entirely on the strict mode above.
 			el.innerHTML = svg;
 			el.classList.add("mermaid-rendered");
 		} catch {

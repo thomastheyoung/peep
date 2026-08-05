@@ -29,6 +29,7 @@
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
+    "dompurify": "^3.4.13",
     "gemoji": "^8.1.0",
     "katex": "^0.16.47",
     "marked": "^17.0.6",

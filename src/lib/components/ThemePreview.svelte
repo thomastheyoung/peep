@@ -24,6 +24,7 @@
 <script lang="ts">
 	import { themeState } from "$lib/themes/theme.svelte";
 	import { renderMarkdown } from "$lib/markdown";
+	import { trustedConstant, type SanitizedHtml } from "$lib/sanitize-html";
 	import baseCssRaw from "$lib/themes/base.css?raw";
 
 	let { themeId, markdown }: { themeId: string; markdown?: string } = $props();
@@ -51,17 +52,26 @@
 		}
 	`;
 
-	// Fallback when no document is open
-	const SAMPLE_HTML = `<h1>Heading</h1>
+	// Fallback when no document is open. An author-written literal in this
+	// repo, never user input — `trustedConstant` records that reasoning at the
+	// type level rather than leaving it to a comment.
+	const SAMPLE_HTML = trustedConstant(`<h1>Heading</h1>
 <p>Body text with a <a href="#">hyperlink</a> and some <strong>bold words</strong> in a paragraph.</p>
 <blockquote><p>A blockquote adds emphasis to a passage.</p></blockquote>
 <hr>
 <pre><code>const theme = "preview";</code></pre>
-<ul><li>List item one</li><li>List item <a href="#">with link</a></li></ul>`;
+<ul><li>List item one</li><li>List item <a href="#">with link</a></li></ul>`);
 
-	function setContent(el: HTMLDivElement, html: string) {
-		// Safe: HTML comes from our own renderMarkdown pipeline (marked + shiki)
-		// operating on local files in a desktop app. Shadow DOM provides isolation.
+	function setContent(el: HTMLDivElement, html: SanitizedHtml) {
+		// `SanitizedHtml` is a branded type, so this parameter cannot receive a
+		// raw string — the guarantee is enforced by the compiler rather than by
+		// this comment. Values reach it either from `renderMarkdown` (sanitized
+		// at its choke point, see `sanitize-html.ts`) or from `trustedConstant`
+		// applied to a literal above.
+		//
+		// The Shadow DOM here isolates CSS, NOT script: a `<script>` or
+		// `onerror=` inside a shadow root executes exactly as it would in the
+		// light DOM. Isolation was never the reason this was safe.
 		el.innerHTML = html;
 	}
 

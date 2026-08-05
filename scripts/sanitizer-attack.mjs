@@ -43,6 +43,7 @@ import { chromium, webkit } from "playwright";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO, "src/lib/themes/sanitize-theme-css.ts");
+const HTML_SRC = join(REPO, "src/lib/sanitize-html.ts");
 const THEMES_DIR = join(REPO, "src/lib/themes/themes");
 
 const KEEPERS = [
@@ -97,6 +98,260 @@ function loadSanitizerAsScript() {
 	// page globals instead. Nothing else about the source is altered.
 	return js.replace(/^export (const|function|type) /gm, "$1 ");
 }
+
+/**
+ * Load the REAL HTML sanitizer as browser-executable JS (markdown-viewer-r74).
+ *
+ * Unlike the CSS sanitizer above, this module imports DOMPurify, so stripping
+ * types is not enough — the import has to be resolved. esbuild (already a
+ * transitive dev dependency via vite) bundles it to an IIFE exposing `SH`.
+ *
+ * Bundling the REAL module, rather than re-declaring its config here, is the
+ * point: a hand-copied allow-list is a second source of truth, and the moment
+ * it drifts this harness reports green on a configuration the app does not
+ * ship. Same reasoning as the type-stripping above.
+ */
+function loadHtmlSanitizerAsScript() {
+	if (!existsSync(HTML_SRC)) {
+		console.error(`HTML sanitizer source not found: ${HTML_SRC}`);
+		process.exit(2);
+	}
+	const bin = join(REPO, "node_modules/.bin/esbuild");
+	if (!existsSync(bin)) {
+		console.error(`esbuild not found at ${bin} — run \`pnpm install\``);
+		process.exit(2);
+	}
+	try {
+		return execFileSync(
+			bin,
+			[
+				HTML_SRC,
+				"--bundle",
+				"--format=iife",
+				"--global-name=SH",
+				"--platform=browser",
+				"--log-level=warning",
+			],
+			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+		);
+	} catch (err) {
+		console.error(`Could not bundle ${HTML_SRC}:\n${err.stderr || err.message}`);
+		process.exit(2);
+	}
+}
+
+/**
+ * Read the `securityLevel` the app ACTUALLY configures out of `mermaid.ts`.
+ *
+ * This indirection is the whole point of the mermaid assertion. Hardcoding
+ * `"strict"` in this harness would test a fact about MERMAID ("strict mode
+ * works") rather than a fact about THIS REPO ("we configure it strictly") —
+ * and those are indistinguishable while green. Verified by mutation: with the
+ * literal hardcoded here, flipping mermaid.ts to `"loose"` left the suite
+ * passing, which is precisely the vacuous-security-test shape this project has
+ * shipped once before. Sourcing the value means that flip now fails.
+ */
+function mermaidSecurityLevel() {
+	const src = join(REPO, "src/lib/mermaid.ts");
+	if (!existsSync(src)) {
+		console.error(`mermaid source not found: ${src}`);
+		process.exit(2);
+	}
+	// Anchored to the start of a line (allowing only leading whitespace) so a
+	// COMMENT mentioning `securityLevel: "strict"` cannot satisfy this check.
+	// mermaid.ts has exactly such a comment further down explaining the trust
+	// boundary; without the anchor, deleting the real config line still matched
+	// it and the mutation check passed — measured.
+	const m = readFileSync(src, "utf8").match(
+		/^[ \t]*securityLevel:\s*["']([a-z]+)["']/m,
+	);
+	if (!m) {
+		// Absent is itself a failure: mermaid's default is strict TODAY, but an
+		// unstated default is exactly what this assertion exists to forbid.
+		console.error(
+			`No explicit securityLevel found in ${src} — mermaid's SVG is assigned via innerHTML and its only control must be stated, not inherited.`,
+		);
+		process.exit(2);
+	}
+	return m[1];
+}
+
+/**
+ * Bundle the repo's OWN mermaid so the strict-mode assertion tests the version
+ * the app ships, offline, with no network dependency in CI.
+ */
+function loadMermaidAsScript() {
+	const bin = join(REPO, "node_modules/.bin/esbuild");
+	try {
+		return execFileSync(
+			bin,
+			[
+				"--bundle",
+				"--format=iife",
+				"--global-name=MM",
+				"--platform=browser",
+				"--log-level=error",
+				"--define:process.env.NODE_ENV=\"production\"",
+				join(REPO, "node_modules/mermaid/dist/mermaid.esm.mjs"),
+			],
+			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 },
+		);
+	} catch (err) {
+		console.error(`Could not bundle mermaid:\n${(err.stderr || err.message).slice(0, 400)}`);
+		process.exit(2);
+	}
+}
+
+/**
+ * mXSS corpus — the assertion that justifies keeping `{@html}`.
+ *
+ * DOMPurify sanitizes a TREE, serializes it to a string, and `{@html}` hands
+ * that string back to the engine to parse again. If serialize+reparse yields a
+ * different tree than the one that was sanitized, sanitization is bypassed.
+ * That divergence is a property of real HTML parsers; jsdom's parser and
+ * serializer agree with each other in ways Blink and WebKit do not, so this
+ * class CANNOT be tested in vitest.
+ *
+ * Each payload is sanitized and then assigned via `innerHTML` — mirroring
+ * exactly what `{@html}` does — and the resulting LIVE DOM is inspected. If
+ * this suite ever goes red, the decision to keep `{@html}` flips and the fix
+ * is DOMPurify's `RETURN_DOM_FRAGMENT` plus a Svelte action.
+ */
+const MXSS_PAYLOADS = [
+	[
+		"mglyph/mtext namespace confusion",
+		`<math><mtext><table><mglyph><style><!--</style><img title="--><img src=x onerror=alert(1)>"></math>`,
+	],
+	[
+		"annotation-xml integration point",
+		`<math><annotation-xml encoding="text/html"><style><!--</style><img title="--><img src=x onerror=alert(1)>"></annotation-xml></math>`,
+	],
+	[
+		"svg foreignObject CDATA breakout",
+		`<svg><foreignObject><![CDATA[</foreignObject><img src=x onerror=alert(1)>]]></foreignObject></svg>`,
+	],
+	[
+		"noscript reparse",
+		`<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>`,
+	],
+	[
+		"svg style comment breakout",
+		`<svg><style><!--</style><img title="--><img src=x onerror=alert(1)>"></svg>`,
+	],
+	[
+		"template nesting",
+		`<template><script>alert(1)</script></template><p>after</p>`,
+	],
+	[
+		"form nesting with formaction",
+		`<form><math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>`,
+	],
+];
+
+/**
+ * Overlay payloads delivered through MARKDOWN rather than through theme CSS.
+ *
+ * A colour assertion cannot see a transparent overlay, so these hit-test the
+ * titlebar's centre pixel with `elementFromPoint`. `contain: content` on
+ * `.content` (see the fixture) is what actually contains them — the same
+ * structural defence the theme attacks rely on, re-asserted from the other
+ * direction so removing that rule fails both suites.
+ */
+const OVERLAY_PAYLOADS = [
+	[
+		"fixed-position chrome spoof",
+		`<div style="position:fixed;inset:0 0 auto 0;height:38px;background:red;z-index:2147483647">SPOOF</div>`,
+	],
+	[
+		"invisible full-viewport clickjack",
+		`<div style="position:fixed;inset:0;z-index:2147483647;opacity:0.01;background:#000"></div>`,
+	],
+	[
+		"absolutely-positioned negative offset",
+		`<div style="position:absolute;top:-100px;left:0;width:100vw;height:200px;background:lime"></div>`,
+	],
+];
+
+/**
+ * Shapes the render pipeline emits that MUST survive, asserted in a real
+ * engine. These are regression tests, not security tests: each corresponds to
+ * a plausible "hardening" edit that would silently break a feature.
+ */
+const has = (r, tag) => r.present.some((e) => e.tag === tag);
+
+/**
+ * Read the heading-id prefix the app ACTUALLY generates, out of `markdown.ts`.
+ *
+ * Same reasoning as `mermaidSecurityLevel()`: hardcoding `"user-content-"`
+ * here would assert a fact about DOMPurify rather than about this repo, and
+ * would keep passing if the prefix were removed — at which point real headings
+ * lose their ids and the ToC, scroll-spy and scroll restore break silently.
+ * Returning `""` when absent is correct: the fixture then asserts the
+ * unprefixed id survives, which is exactly what fails.
+ */
+function headingIdPrefix() {
+	const src = join(REPO, "src/lib/markdown.ts");
+	if (!existsSync(src)) {
+		console.error(`markdown source not found: ${src}`);
+		process.exit(2);
+	}
+	const m = readFileSync(src, "utf8").match(
+		/^const HEADING_ID_PREFIX = ["']([^"']*)["']/m,
+	);
+	return m ? m[1] : "";
+}
+
+const HTML_KEEPERS = [
+	{
+		label: "shiki inline custom-property styles (FORBID_ATTR:style would kill highlighting)",
+		html: `<pre class="shiki css-variables" style="background:#000"><code><span style="color:var(--shiki-token-keyword)">const</span></code></pre>`,
+		check: (r) =>
+			r.present.some((e) => e.tag === "pre" && e.cls.includes("shiki")) &&
+			has(r, "code") &&
+			r.present.some((e) => e.tag === "span" && e.style.includes("--shiki")),
+	},
+	{
+		label: "KaTeX MathML semantics + annotation (ADD_TAGS)",
+		html: `<math><semantics><mrow><mi>a</mi></mrow><annotation encoding="application/x-tex">a</annotation></semantics></math>`,
+		check: (r) => has(r, "semantics") && has(r, "annotation"),
+	},
+	{
+		label: "test.md raw inline HTML (details/dl/kbd/mark/figure)",
+		html: `<kbd>Cmd</kbd><mark>m</mark><dl><dt>t</dt><dd>d</dd></dl><details><summary>s</summary><p>b</p></details><figure><blockquote>q</blockquote><figcaption>c</figcaption></figure>`,
+		check: (r) =>
+			["kbd", "mark", "dl", "dt", "dd", "details", "summary", "figure", "figcaption"].every(
+				(t) => has(r, t),
+			),
+	},
+	{
+		// Two properties make this non-vacuous, and both are needed:
+		//
+		//   1. The slug MUST be a word that collides with a `document`
+		//      property. DOMPurify's DOM-clobbering protection strips exactly
+		//      those, so a neutral fixture like `a-slug` passes whether or not
+		//      `markdown.ts` prefixes its slugs — measured. That was the blind
+		//      spot `markdown.test.ts` already documents, reproduced here.
+		//   2. The prefix is READ FROM markdown.ts (`headingIdPrefix()`), not
+		//      hardcoded, so deleting HEADING_ID_PREFIX changes what this
+		//      fixture asserts and the check fails.
+		label: "heading ids survive DOM-clobbering protection (scroll-spy + restore)",
+		html: `<h2 id="${headingIdPrefix()}title">Title</h2>`,
+		check: (r) =>
+			r.present.some((e) => e.tag === "h2" && e.id === `${headingIdPrefix()}title`),
+	},
+	{
+		label: "mermaid container textContent byte-identical",
+		html: `<div class="mermaid-diagram">graph TD\n  A[&quot;x &amp; y&quot;] --&gt; B</div>`,
+		check: (r) =>
+			r.present.some((e) => e.cls === "mermaid-diagram") &&
+			r.text === 'graph TD\n  A["x & y"] --> B',
+	},
+	{
+		label: "GFM task-list checkbox survives (input not forbidden)",
+		html: `<ul><li><input type="checkbox" disabled checked> done</li></ul>`,
+		check: (r) => r.present.some((e) => e.tag === "input" && e.type === "checkbox"),
+	},
+];
 
 /**
  * Fixture mirroring the real app's chrome relationship: `--chrome-bg` declared
@@ -250,6 +505,7 @@ async function run(engineName, engine) {
 	const page = await browser.newPage();
 	await page.setContent(PAGE, { waitUntil: "load" });
 	await page.addScriptTag({ content: loadSanitizerAsScript() });
+	await page.addScriptTag({ content: loadHtmlSanitizerAsScript() });
 
 	const results = [];
 
@@ -265,6 +521,11 @@ async function run(engineName, engine) {
 	});
 	if (!probe.sanitizerLoaded) {
 		console.error(`${engineName}: sanitizer failed to load into the page`);
+		await browser.close();
+		process.exit(2);
+	}
+	if (!(await page.evaluate(() => typeof globalThis.SH?.sanitizeHtml === "function"))) {
+		console.error(`${engineName}: HTML sanitizer failed to load into the page`);
 		await browser.close();
 		process.exit(2);
 	}
@@ -356,8 +617,132 @@ async function run(engineName, engine) {
 		keeperResults.push({ id, ...r });
 	}
 
+	// ---- HTML sanitizer suite (markdown-viewer-r74) -----------------------
+	// Runs in the same page so it shares the real chrome fixture, and so the
+	// overlay attacks below are hit-tested against the SAME `contain: content`
+	// rule the theme attacks use.
+
+	const mxssResults = await page.evaluate((payloads) => {
+		const host = document.querySelector("article.markdown-body");
+		const original = host.innerHTML;
+		const out = payloads.map(([label, payload]) => {
+			// Sanitize, then hand the STRING back to the engine's parser —
+			// exactly what {@html} does. Inspecting the live DOM afterwards is
+			// the only way to observe a serialize/reparse divergence.
+			host.innerHTML = globalThis.SH.sanitizeHtml(payload);
+			const els = [...host.querySelectorAll("*")];
+			const bad = els.filter(
+				(el) =>
+					/^(SCRIPT|IFRAME|OBJECT|EMBED|FORM|BASE|META)$/.test(el.tagName) ||
+					[...el.attributes].some(
+						(a) =>
+							a.name.toLowerCase().startsWith("on") ||
+							/javascript:/i.test(a.value),
+					),
+			);
+			return {
+				label,
+				contained: bad.length === 0,
+				offender: bad.length ? `${bad[0].tagName} ${bad[0].outerHTML.slice(0, 90)}` : "",
+			};
+		});
+		host.innerHTML = original;
+		return out;
+	}, MXSS_PAYLOADS);
+
+	const overlayResults = await page.evaluate((payloads) => {
+		const host = document.querySelector("article.markdown-body");
+		const original = host.innerHTML;
+		const bar = document.querySelector(".titlebar");
+		const out = payloads.map(([label, payload]) => {
+			host.innerHTML = globalThis.SH.sanitizeHtml(payload);
+			const r = bar.getBoundingClientRect();
+			// Who owns the titlebar's centre pixel? A colour check cannot see a
+			// transparent overlay; hit-testing can.
+			const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+			return {
+				label,
+				contained: hit === bar || bar.contains(hit),
+				owner: hit ? `${hit.tagName}.${hit.className}` : "(none)",
+			};
+		});
+		host.innerHTML = original;
+		return out;
+	}, OVERLAY_PAYLOADS);
+
+	// Each keeper is checked by sanitizing IN the page (real engine parser) and
+	// returning the resulting markup, then asserting in Node. Declarative
+	// selector/text assertions travel across the boundary as data; serializing
+	// predicate functions and rebuilding them in the page would not.
+	const htmlKeeperResults = [];
+	for (const keeper of HTML_KEEPERS) {
+		const got = await page.evaluate((html) => {
+			const host = document.querySelector("article.markdown-body");
+			const original = host.innerHTML;
+			host.innerHTML = globalThis.SH.sanitizeHtml(html);
+			const result = {
+				html: host.innerHTML,
+				// Read back through the live DOM so assertions see what the
+				// engine actually parsed, not what the sanitizer emitted.
+				present: [...host.querySelectorAll("*")].map((el) => ({
+					tag: el.tagName.toLowerCase(),
+					id: el.id,
+					style: el.getAttribute("style") || "",
+					cls: el.getAttribute("class") || "",
+					type: el.getAttribute("type") || "",
+				})),
+				text: host.textContent,
+			};
+			host.innerHTML = original;
+			return result;
+		}, keeper.html);
+		htmlKeeperResults.push({
+			label: keeper.label,
+			passed: keeper.check(got),
+			got: got.html.slice(0, 120),
+		});
+	}
+
+	// Mermaid's strict mode is the ONLY control on the SVG it assigns via
+	// innerHTML, so this asserts it directly in a real engine. Without it,
+	// deleting `securityLevel: "strict"` from mermaid.ts turns nothing red.
+	await page.addScriptTag({ content: loadMermaidAsScript() });
+	const mermaidResult = await page.evaluate(async (securityLevel) => {
+		try {
+			const mermaid = globalThis.MM?.default ?? globalThis.MM;
+			// `securityLevel` is READ FROM mermaid.ts, not hardcoded — see
+			// `mermaidSecurityLevel()`. That is what makes flipping the app's
+			// config fail this assertion instead of silently passing.
+			mermaid.initialize({ startOnLoad: false, securityLevel });
+			const { svg } = await mermaid.render(
+				"probe",
+				'graph TD\n  A[Start] --> B\n  click A "javascript:alert(1)"',
+			);
+			// Scan the SVG TEXT, not a parsed attribute list. Measured: mermaid
+			// emits the click binding in a form that `DOMParser(..., image/svg+xml)`
+			// does not expose as an attribute node, so an attribute walk reports
+			// "clean" under BOTH strict and loose — a detector bug that is
+			// indistinguishable from the control working. Verified by mutation:
+			// with this string check, `securityLevel: "loose"` fails here and
+			// `"strict"` passes.
+			const dangerous = /javascript:/i.test(svg);
+			return { available: true, passed: !dangerous, securityLevel };
+		} catch (err) {
+			return { available: false, reason: String(err).slice(0, 120) };
+		}
+	}, mermaidSecurityLevel());
+
 	await browser.close();
-	return { probe, results, outputResults, keeperResults };
+	return {
+		probe,
+		results,
+		outputResults,
+		keeperResults,
+		mxssResults,
+		overlayResults,
+		htmlKeeperResults,
+		mermaidResult,
+	};
 }
 
 const argv = process.argv.slice(2);
@@ -375,7 +760,16 @@ if (!engines.length) {
 let failures = 0;
 
 for (const [name, engine] of engines) {
-	const { probe, results, outputResults, keeperResults } = await run(name, engine);
+	const {
+		probe,
+		results,
+		outputResults,
+		keeperResults,
+		mxssResults,
+		overlayResults,
+		htmlKeeperResults,
+		mermaidResult,
+	} = await run(name, engine);
 	console.log(`\n===== ${name} =====`);
 	console.log(
 		`  @scope functional: ${probe.scopeWorks}   CSS.supports says: ${probe.cssSupportsSaysScope}` +
@@ -418,6 +812,39 @@ for (const [name, engine] of engines) {
 			console.log(`         ^ @font-face kept but its url() was dropped — fonts would silently fail`);
 			failures++;
 		}
+	}
+
+	console.log("\n  HTML mXSS (sanitize -> reparse via innerHTML, as {@html} does):");
+	for (const m of mxssResults) {
+		if (!m.contained) failures++;
+		console.log(`    ${m.contained ? "✓" : "✗ ESCAPED"}  ${m.label}`);
+		if (!m.contained) console.log(`         ${m.offender}`);
+	}
+
+	console.log("\n  HTML overlay containment (markdown direction, hit-tested):");
+	for (const o of overlayResults) {
+		if (!o.contained) failures++;
+		console.log(`    ${o.contained ? "✓" : "✗ ESCAPED"}  ${o.label}`);
+		if (!o.contained) console.log(`         titlebar centre owned by ${o.owner}`);
+	}
+
+	console.log("\n  HTML pipeline survival (regression, not security):");
+	for (const k of htmlKeeperResults) {
+		if (!k.passed) failures++;
+		console.log(`    ${k.passed ? "✓" : "✗ FAILED"}  ${k.label}`);
+		if (!k.passed) console.log(`         got: ${k.got}`);
+	}
+
+	console.log("\n  Mermaid strict mode (the only control on its innerHTML SVG):");
+	if (!mermaidResult.available) {
+		console.log(`    ✗ UNAVAILABLE  ${mermaidResult.reason}`);
+		failures++;
+	} else {
+		if (!mermaidResult.passed) failures++;
+		console.log(
+			`    ${mermaidResult.passed ? "✓" : "✗ FAILED"}  click directive with javascript: is neutralized` +
+				`  (securityLevel="${mermaidResult.securityLevel}", read from mermaid.ts)`,
+		);
 	}
 }
 
