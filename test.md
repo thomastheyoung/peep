@@ -220,7 +220,7 @@ done | sort -t: -k2 -n -r
 
 ```json
 {
-  "name": "markdown-viewer",
+  "name": "peep",
   "version": "0.1.0",
   "dependencies": {
     "marked": "^15.0.0",

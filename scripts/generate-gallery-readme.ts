@@ -2,7 +2,7 @@
  * Generates `themes/README.md`, the browsable index for the repo-root theme
  * gallery. The gallery themes are shipped as CSS files a user imports, not
  * themes the app bundles — see `src/lib/themes/registry.ts`'s note on the
- * builtins vs. the gallery split (markdown-viewer-rgm).
+ * builtins vs. the gallery split (peep-rgm).
  *
  * Run via `pnpm gen:gallery-readme`. The output is committed and verified by
  * `src/lib/themes/gallery-readme.test.ts`, which rebuilds it from the same

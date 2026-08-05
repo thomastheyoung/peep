@@ -140,7 +140,7 @@
 		}
 
 		// keep-both: route into the shared naming flow so the user picks a
-		// distinct name for the second copy (markdown-viewer-2ha).
+		// distinct name for the second copy (peep-2ha).
 		await nameThemeFlow(name, css);
 	}
 

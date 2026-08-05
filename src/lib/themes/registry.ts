@@ -27,7 +27,7 @@ function builtinLoad(css: Promise<string>): Promise<SanitizeResult> {
  * Deliberately curated, not exhaustive: every additional theme is a permanent
  * tax on every future `base.css` token change, paid via the real-Chromium
  * diff harness (`pnpm diff:themes`). The other themes shipped here previously
- * were moved to `/themes` at the repo root, not deleted — markdown-viewer-rgm
+ * were moved to `/themes` at the repo root, not deleted — peep-rgm
  * turns that into a browsable gallery.
  *
  * Order matters: index 0 is the default theme (see `theme.svelte.ts`).
@@ -91,7 +91,7 @@ export type BuiltinThemeId = (typeof definitions)[number]["id"];
  * 7 builtin ids is lost. This is NOT a safety mechanism — TypeScript will
  * happily accept any string here. Runtime safety is `isThemeId` in
  * `theme.svelte.ts`, which checks membership against the live registry
- * (builtins today, builtins + discovered user themes once markdown-viewer-s0r
+ * (builtins today, builtins + discovered user themes once peep-s0r
  * lands).
  */
 export type ThemeId = BuiltinThemeId | (string & {});

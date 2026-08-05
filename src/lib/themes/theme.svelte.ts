@@ -45,7 +45,7 @@ const BUILTIN_IDS: readonly string[] = builtinThemes.map((t) => t.id);
  * NOT a bare `themes: ThemeMeta[]` that resolves empty on failure — those two
  * shapes both conflate "the themes directory is empty" with "the scan itself
  * could not run" (IPC failure, unreadable directory), and callers need to
- * tell those apart: `preferences.init()` (markdown-viewer-zm6) must PERSIST a
+ * tell those apart: `preferences.init()` (peep-zm6) must PERSIST a
  * fallback-to-default when a scan genuinely ran and found no match for the
  * stored id, but must NOT persist anything when the scan itself failed,
  * because a failed scan is not evidence the theme is gone — the file may
@@ -56,7 +56,7 @@ const BUILTIN_IDS: readonly string[] = builtinThemes.map((t) => t.id);
 export type DiscoveryResult = { readonly scanned: true; readonly themes: readonly ThemeMeta[] } | { readonly scanned: false };
 
 // In-flight dedup: `discover()` is called at startup and again on every
-// debounced `user-themes-changed` event (markdown-viewer-e9b/y0z). Without
+// debounced `user-themes-changed` event (peep-e9b/y0z). Without
 // this, two overlapping calls would each run their own `loadUserThemes()`
 // round trip and race to assign `userThemes` — the loser's response can
 // arrive after the winner's and silently revert a newer discovery. Reset in

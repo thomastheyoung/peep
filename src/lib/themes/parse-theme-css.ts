@@ -3,7 +3,7 @@
  *
  * `scripts/extract-theme-colors.ts` (build time, bundled themes) and the
  * user-theme importer (runtime, `.css` files dropped in by a user — see
- * markdown-viewer-bnw/e9b) both need to turn a theme's `.app` rule into a
+ * peep-bnw/e9b) both need to turn a theme's `.app` rule into a
  * `{ bg, text, accent }` swatch. Duplicating this logic between a build
  * script and app code would recreate exactly the drift `theme-colors.ts`
  * exists to prevent: two copies of "how do we read a theme's color" that can
@@ -150,7 +150,7 @@ export type ParseResult =
 // up" the bang.
 //
 // The grammar is deliberately narrow because this parses untrusted input
-// (imported user themes, markdown-viewer-bnw/e9b): only the first block
+// (imported user themes, peep-bnw/e9b): only the first block
 // within the first 4KB is considered, and only three fields are recognized.
 // Field values are trimmed, stripped of control characters, and length-capped
 // — Svelte escapes on render so this is not an XSS boundary, but an

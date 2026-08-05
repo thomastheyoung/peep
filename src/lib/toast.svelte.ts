@@ -1,5 +1,5 @@
 /**
- * Minimal toast/notification queue (markdown-viewer-l6d), pulled forward
+ * Minimal toast/notification queue (peep-l6d), pulled forward
  * from the theme-import work because the sanitize failure path has nowhere
  * to report to otherwise: a rejected theme's `load()` cannot return an empty
  * string to mean "failed" — that already means "no theme loaded yet" at

@@ -1,5 +1,5 @@
 /**
- * Reusable modal prompt primitive (markdown-viewer-zm6), built for three
+ * Reusable modal prompt primitive (peep-zm6), built for three
  * upcoming flows that each need a modal decision point: delete-confirm
  * (binary, destructive), an import-collision prompt (three-way: Replace /
  * Keep both / Cancel), and name-this-theme (text entry). One primitive
