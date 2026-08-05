@@ -1,12 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the theme module to isolate preferences testing
+// Mock the theme module to isolate preferences testing.
+//
+// `discover` defaults to an immediately-resolved `{scanned: true, themes: []}`
+// so every pre-existing test in this file (none of which cares about
+// discovery) is unaffected. Tests that DO care replace it with
+// `mockDiscover.mockResolvedValue(...)` or a deferred promise per-case.
+// `allThemes` is `let`, not `const`, so a test can register a theme id that
+// only "discovery" would have found (e.g. "my-theme") without it being a
+// registry member from the start — matching how a real discover() call
+// would grow the live list.
 vi.mock("./themes/theme.svelte", () => {
-	let id = "github-dark";
-	const allThemes = [
-		{ id: "github-dark", name: "GitHub Dark", colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" }, load: () => Promise.resolve("") },
-		{ id: "github-light", name: "GitHub Light", colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" }, load: () => Promise.resolve("") },
+	const BASELINE_THEMES = [
+		{
+			id: "github-dark",
+			name: "GitHub Dark",
+			source: "builtin",
+			colors: { bg: "#0d1117", text: "#e6edf3", accent: "#58a6ff" },
+			load: () => Promise.resolve({ ok: true, css: "body { color: white; }" }),
+		},
+		{
+			id: "github-light",
+			name: "GitHub Light",
+			source: "builtin",
+			colors: { bg: "#fff", text: "#1f2328", accent: "#0969da" },
+			load: () => Promise.resolve({ ok: true, css: "body { color: black; }" }),
+		},
 	];
+	let id = "github-dark";
+	let allThemes = [...BASELINE_THEMES];
 	return {
 		themeState: {
 			get id() {
@@ -18,6 +40,9 @@ vi.mock("./themes/theme.svelte", () => {
 			get all() {
 				return allThemes;
 			},
+			get defaultId() {
+				return "github-dark";
+			},
 			async setTheme(newId: string) {
 				id = newId;
 			},
@@ -26,22 +51,86 @@ vi.mock("./themes/theme.svelte", () => {
 			},
 		},
 		isThemeId: (value: string) => allThemes.some((t) => t.id === value),
+		discover: vi.fn(() => Promise.resolve({ scanned: true, themes: allThemes })),
+		// Test-only escape hatch: lets a test add a theme id to the mocked
+		// registry as if discover() had found it, without hand-maintaining a
+		// second copy of `allThemes` in the test file. Defaults to `source:
+		// "user"` — a theme discover() adds mid-session is realistically a user
+		// theme, and preferences.svelte.ts's remove/duplicate flows branch on
+		// `source`, so tests exercising those need this to be right by default.
+		__addMockTheme(themeId: string, opts: { source?: "builtin" | "user"; path?: string; revision?: number } = {}) {
+			allThemes = [
+				...allThemes,
+				{
+					id: themeId,
+					name: themeId,
+					source: opts.source ?? "user",
+					path: opts.path ?? `/themes/${themeId}.css`,
+					revision: opts.revision ?? 1,
+					colors: { bg: "#000", text: "#fff", accent: "#f00" },
+					load: () => Promise.resolve({ ok: true, css: `.app { --md-bg: #000; }` }),
+				},
+			];
+		},
+		// The mirror image, for reconciliation tests: simulates a theme file
+		// that existed at one discovery and is gone by the next (deleted,
+		// renamed) without touching whatever `id` is currently "active" — a
+		// real discover() doesn't know or care what's active either.
+		__removeMockTheme(themeId: string) {
+			allThemes = allThemes.filter((t) => t.id !== themeId);
+		},
+		// This mock's `id`/`allThemes` are module-factory-scoped closure state,
+		// which — unlike the module-level `$state` this file mocks around — has
+		// no natural per-test reset. Without calling this in `beforeEach`, a
+		// `__removeMockTheme` in one test permanently shrinks `allThemes` for
+		// every test that runs after it in the same file.
+		__resetMockThemes() {
+			id = "github-dark";
+			allThemes = [...BASELINE_THEMES];
+		},
 	};
 });
 
 // The whole reason `ipc.ts` exists as a seam: preferences.svelte.ts talks to
-// disk exclusively through these two functions, so mocking this one module
-// is enough to unit-test persistence/migration without a real Tauri backend.
+// disk exclusively through these functions, so mocking this one module is
+// enough to unit-test persistence/migration/theme-management without a real
+// Tauri backend.
 vi.mock("./ipc", () => ({
 	loadPreferencesFile: vi.fn(),
 	savePreferencesFile: vi.fn(),
+	loadUserThemes: vi.fn(),
+	importThemeCss: vi.fn(),
+	deleteUserTheme: vi.fn(),
 }));
 
-import { preferences, type RangeSetting, type ChoiceSetting } from "./preferences.svelte";
-import { loadPreferencesFile, savePreferencesFile } from "./ipc";
+import {
+	preferences,
+	type RangeSetting,
+	type ChoiceSetting,
+	type ThemeSetting,
+} from "./preferences.svelte";
+import { loadPreferencesFile, savePreferencesFile, loadUserThemes, importThemeCss, deleteUserTheme } from "./ipc";
+import { discover } from "./themes/theme.svelte";
+import { prompt } from "./prompt.svelte";
+import { toast } from "./toast.svelte";
+import { withFrontmatterName } from "./themes/parse-theme-css";
 
 const mockLoad = vi.mocked(loadPreferencesFile);
 const mockSave = vi.mocked(savePreferencesFile);
+const mockDiscover = vi.mocked(discover);
+const mockLoadUserThemes = vi.mocked(loadUserThemes);
+const mockImportThemeCss = vi.mocked(importThemeCss);
+const mockDeleteUserTheme = vi.mocked(deleteUserTheme);
+
+// The mocked module's test-only escape hatches (see the vi.mock factory
+// above) aren't part of theme.svelte.ts's real public API, so they aren't in
+// the static import's type — cast once, here, rather than re-deriving this
+// shape at every call site.
+const mockThemeModule = (await import("./themes/theme.svelte")) as unknown as {
+	__addMockTheme(themeId: string, opts?: { source?: "builtin" | "user"; path?: string; revision?: number }): void;
+	__removeMockTheme(themeId: string): void;
+	__resetMockThemes(): void;
+};
 
 describe("preferences", () => {
 	const prefs = preferences;
@@ -50,11 +139,27 @@ describe("preferences", () => {
 		localStorage.clear();
 		mockLoad.mockReset();
 		mockSave.mockReset();
+		mockDiscover.mockReset();
+		mockLoadUserThemes.mockReset();
+		mockImportThemeCss.mockReset();
+		mockDeleteUserTheme.mockReset();
+		mockThemeModule.__resetMockThemes();
+		// Real module-level singletons (not mocked) — drained so a prompt/toast
+		// left over from a previous test can't leak into this one.
+		for (const t of [...toast.toasts]) toast.dismiss(t.id);
+		prompt.cancel();
 		// Default: no on-disk file, so existing non-migration tests that don't
 		// call init() are unaffected, and tests that DO call init() get "absent
 		// file" behavior unless they override this.
 		mockLoad.mockResolvedValue(null);
 		mockSave.mockResolvedValue(undefined);
+		mockLoadUserThemes.mockResolvedValue([]);
+		mockDeleteUserTheme.mockResolvedValue(undefined);
+		// Default: scan ran and found nothing beyond the two mocked builtins —
+		// matches the `scanned: true` shape every pre-existing (pre-discovery)
+		// test implicitly assumed. Tests exercising the ordering race or the
+		// scanned:false branch override this per-case.
+		mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
 		// Reset singleton state since preferences uses module-level $state.
 		// contentWidth/fontWeight/letterSpacing/lineHeight have no dedicated
 		// reset* methods, so drive them back to defaults through the same
@@ -94,6 +199,11 @@ describe("preferences", () => {
 				if (s.type === "choice") {
 					expect(s.options.length).toBeGreaterThan(0);
 					expect(s.select).toBeTypeOf("function");
+				} else if (s.type === "theme") {
+					expect(s.options.length).toBeGreaterThan(0);
+					expect(s.select).toBeTypeOf("function");
+					expect(s.remove).toBeTypeOf("function");
+					expect(s.duplicate).toBeTypeOf("function");
 				} else {
 					expect(s.min).toBeLessThan(s.max);
 					expect(s.step).toBeGreaterThan(0);
@@ -104,8 +214,17 @@ describe("preferences", () => {
 		});
 
 		it("theme setting lists all themes from registry", () => {
-			const theme = prefs.settings.find((s) => s.id === "theme") as ChoiceSetting;
+			const theme = prefs.settings.find((s) => s.id === "theme") as ThemeSetting;
 			expect(theme.options.length).toBe(2); // mocked 2 themes
+		});
+
+		it("theme options carry required swatches, source, and actions", () => {
+			const theme = prefs.settings.find((s) => s.id === "theme") as ThemeSetting;
+			for (const option of theme.options) {
+				expect(option.swatches).toBeDefined();
+				expect(option.source).toBe("builtin"); // both mocked themes are builtins
+				expect(option.actions).toEqual(["duplicate"]);
+			}
 		});
 
 		it("content-width has auto/wide/full options", () => {
@@ -477,6 +596,236 @@ describe("preferences", () => {
 		});
 	});
 
+	// markdown-viewer-bnw / zm6: theme discovery must complete before init()
+	// decides whether a stored theme id is valid, and the persistence
+	// consequence of a FAILED scan must differ from a scan that legitimately
+	// found nothing.
+	describe("init: theme discovery ordering and the scanned discriminant", () => {
+		// THE ordering regression, as an acceptance test. `isThemeId` is a
+		// point-in-time snapshot of theme.svelte.ts's live registry — if init()
+		// checks it before discovery has resolved, a valid user-theme id looks
+		// unknown and falls through to the default on every single launch.
+		//
+		// Deferred promise: discover() is left unresolved until AFTER the
+		// assertion on stored.theme's parse would have already run, so this
+		// only passes if init() actually AWAITS discover() before checking
+		// isThemeId — not merely calls it and moves on.
+		it("awaits discover() before validating the stored theme id, so a late-discovered id still applies", async () => {
+			let resolveDiscover!: (result: { scanned: true; themes: unknown[] }) => void;
+			mockDiscover.mockReturnValue(
+				new Promise((resolve) => {
+					resolveDiscover = resolve;
+				}),
+			);
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "my-theme" }));
+
+			const initPromise = prefs.init();
+
+			// Register "my-theme" as something discover() would have found, but
+			// don't resolve discover() itself yet — if init() raced ahead of it,
+			// the isThemeId check below would already have run and failed.
+			mockThemeModule.__addMockTheme("my-theme");
+			resolveDiscover({ scanned: true, themes: [] });
+
+			await initPromise;
+			expect(prefs.theme.id).toBe("my-theme");
+		});
+
+		// scanned: false — the scan itself could not run (broken IPC, unreadable
+		// directory). This must NOT be treated as evidence the stored theme is
+		// gone: applying (and persisting) a fallback here would permanently
+		// overwrite a perfectly valid stored id with "github-dark" the moment a
+		// transient IPC hiccup coincides with app launch.
+		it("scanned:false: preserves the stored theme id verbatim when a later setter fires", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "unresolvable-theme" }));
+
+			await prefs.init();
+
+			// A later, unrelated setter call (zoom) must not smuggle the visual
+			// fallback onto disk as a side effect of writing zoomLevel.
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			// The ORIGINAL id, not the default the UI fell back to, and not an
+			// absent key. Omitting the field would be just as destructive as
+			// writing the fallback: `savePreferencesFile` replaces the whole
+			// file rather than merging into it (`write_atomic` renames a freshly
+			// written temp over it), so a payload with no `theme` key deletes
+			// the user's choice on the first zoom step after a failed scan.
+			// This assertion is the difference between the two, and it fails
+			// against an omit-the-key implementation.
+			expect(written.theme).toBe("unresolvable-theme");
+			expect(written.zoomLevel).toBeCloseTo(1.1, 5);
+		});
+
+		// scanned: true and the stored id is absent from the (successfully
+		// discovered) list — the theme really is gone (deleted, renamed). This
+		// is zm6's explicit requirement: fall back to default AND WRITE IT, so
+		// the broken reference doesn't linger in the file forever waiting for a
+		// scan that will never find it.
+		it("scanned:true, id absent: falls back to the default theme and PERSISTS the fallback", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "deleted-theme" }));
+
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark"); // DEFAULT_THEME_ID in the mock
+
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-dark");
+		});
+
+		it("scanned:true, id present: applies and persists the stored id normally", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-light");
+
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-light");
+		});
+	});
+
+	// markdown-viewer-e9b/y0z: a theme file can be deleted, renamed, or edited
+	// on disk at any point mid-session, not only at launch — the
+	// `user-themes-changed` watcher calls this after every debounced
+	// re-discovery. Uses the SAME fallback-and-persist rule as init()'s
+	// scanned:true-absent branch (see applyResolvedTheme's doc comment).
+	describe("redetectThemes: mid-session reconciliation", () => {
+		it("falls back to default and persists when the active theme is no longer discoverable", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-light");
+			mockSave.mockClear();
+
+			mockThemeModule.__removeMockTheme("github-light");
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			// applyResolvedTheme's fallback branch calls persist(), which is
+			// itself debounced — advance past that debounce to observe the write.
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-dark"); // DEFAULT_THEME_ID in the mock
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.theme).toBe("github-dark");
+		});
+
+		it("does nothing when the active theme still resolves", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			mockSave.mockClear();
+			mockDiscover.mockClear();
+
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			// Still the same theme, and no unnecessary re-apply/persist.
+			expect(prefs.theme.id).toBe("github-light");
+			expect(mockSave).not.toHaveBeenCalled();
+		});
+
+		it("does nothing when the re-scan itself fails (scanned:false) — an already-applied theme is left alone", async () => {
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "github-light" }));
+			await prefs.init();
+			mockSave.mockClear();
+
+			mockDiscover.mockResolvedValue({ scanned: false });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-light"); // unchanged
+			expect(mockSave).not.toHaveBeenCalled();
+		});
+
+		// A launch-time scan failure leaves `themeState.id` on the visual
+		// fallback while `unverifiedThemeId` holds the user's REAL choice. A
+		// later successful redetect must retry that original id — not just
+		// check whether the visual fallback (a builtin, always resolvable)
+		// still works, which would never recover the user's actual theme.
+		it("a successful redetect retries and recovers the id held from a failed launch-time scan", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "was-unresolvable" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark"); // visual fallback only
+
+			// A later, successful redetect: the registry now contains the theme
+			// that couldn't be checked at launch (the scan was merely transient).
+			mockThemeModule.__addMockTheme("was-unresolvable");
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			// The user's real theme is recovered, not left on the fallback.
+			expect(prefs.theme.id).toBe("was-unresolvable");
+		});
+
+		// The other outcome of the same retry: the originally-held id is
+		// genuinely gone even once a scan can finally run. This is the
+		// fallback-and-persist branch, reached via the held id instead of a
+		// freshly-parsed one — the held id must still be released afterward, so
+		// a later unrelated setter call persists the (now-committed) fallback,
+		// not the dead id forever.
+		it("a successful redetect that still can't resolve the held id commits and persists the fallback", async () => {
+			mockDiscover.mockResolvedValue({ scanned: false });
+			mockLoad.mockResolvedValue(JSON.stringify({ theme: "permanently-gone" }));
+			await prefs.init();
+			expect(prefs.theme.id).toBe("github-dark");
+
+			// Redetect succeeds this time, but "permanently-gone" was never added
+			// — it really doesn't exist.
+			mockDiscover.mockResolvedValue({ scanned: true, themes: [] });
+			vi.useFakeTimers();
+			await preferences.redetectThemes();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(prefs.theme.id).toBe("github-dark");
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(mockSave.mock.calls[0]![0]).theme).toBe("github-dark");
+
+			// The held id is now released — a later write must not resurrect it.
+			mockSave.mockClear();
+			vi.useFakeTimers();
+			prefs.zoomIn();
+			await vi.advanceTimersByTimeAsync(200);
+			vi.useRealTimers();
+
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(mockSave.mock.calls[0]![0]).theme).toBe("github-dark");
+		});
+	});
+
 	// `parseStoredPreferences` proves stored numerics are finite, not that they
 	// are in range. Nothing validates the file's contents before this, so an
 	// out-of-range value read from disk must be brought into the setters' output
@@ -545,24 +894,395 @@ describe("preferences", () => {
 		// calls persist(), so routing the load path through them would write on
 		// every launch AND interleave those writes with the migration write
 		// queued earlier in init() — the exact ordering hazard queueSave exists
-		// to prevent. This is what pins "clamp without persisting".
+		// to prevent. This is what pins "clamp without persisting" for the
+		// NUMERIC fields specifically.
 		//
-		// Deliberately non-discriminating against the pre-clamp implementation:
-		// that version also never wrote on load. This test guards a property the
-		// change had to PRESERVE, so it passing before and after is correct.
-		it("does not write to disk while normalizing on load", async () => {
+		// This payload has no `theme` key, so — as of markdown-viewer-zm6 (see
+		// the "theme discovery ordering" describe block above) — init() DOES
+		// write once, via applyResolvedTheme's fallback-and-persist branch. That
+		// write is correct and intended, not a normalization leak: it is
+		// pinned by its own tests. What THIS test still guards is that the
+		// numeric fields land in that one write already normalized, rather than
+		// via their own separate setter-driven persist() calls layered on top.
+		it("does not additionally write via the numeric setters while normalizing on load", async () => {
 			vi.useFakeTimers();
 			mockLoad.mockResolvedValue(
 				JSON.stringify({ zoomLevel: 1e6, fontWeight: 9999, letterSpacing: -5, lineHeight: 0 }),
 			);
 
 			await prefs.init();
-			// Well past the 150ms save debounce — a setter-driven persist would
-			// have landed by now.
+			// Well past the 150ms save debounce — an extra setter-driven persist
+			// would have landed by now.
 			await vi.advanceTimersByTimeAsync(300);
 
-			expect(mockSave).not.toHaveBeenCalled();
+			// Exactly the one write from the theme fallback, not one-per-setter.
+			expect(mockSave).toHaveBeenCalledTimes(1);
+			const written = JSON.parse(mockSave.mock.calls[0]![0]);
+			expect(written.zoomLevel).toBe(3);
+			expect(written.fontWeight).toBe(700);
+			expect(written.letterSpacing).toBe(-0.05);
+			expect(written.lineHeight).toBe(1.2);
 			vi.useRealTimers();
+		});
+	});
+
+	// markdown-viewer-zm6 / 2ha: deleting a user theme. Ordering is the whole
+	// point (see the doc comment on removeThemeValue in preferences.svelte.ts)
+	// — switch away from the theme being deleted BEFORE calling deleteUserTheme,
+	// never after, and restore the previous theme if the delete call fails.
+	describe("theme setting: remove", () => {
+		function themeSetting(): ThemeSetting {
+			return prefs.settings.find((s) => s.id === "theme") as ThemeSetting;
+		}
+
+		// Drives the confirm prompt to "delete" for tests that aren't themselves
+		// testing the confirm step.
+		function confirmDelete() {
+			const request = prompt.current;
+			if (!request) throw new Error("expected a delete-confirmation prompt to be open");
+			prompt.resolve("delete");
+		}
+
+		it("shows a confirmation prompt before deleting, with Cancel primary and Delete danger", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			const removePromise = themeSetting().remove("ink");
+
+			const request = prompt.current;
+			expect(request).toBeDefined();
+			expect(request?.title).toBe("Delete theme");
+			const cancel = request?.choices.find((c) => c.value === "cancel");
+			const del = request?.choices.find((c) => c.value === "delete");
+			expect(cancel?.primary).toBe(true);
+			expect(del?.danger).toBe(true);
+
+			prompt.cancel();
+			await removePromise;
+		});
+
+		it("cancelling the confirmation performs no delete and no theme switch", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			await prefs.setTheme("ink");
+			expect(prefs.theme.id).toBe("ink");
+
+			const removePromise = themeSetting().remove("ink");
+			prompt.cancel();
+			await removePromise;
+
+			expect(mockDeleteUserTheme).not.toHaveBeenCalled();
+			expect(prefs.theme.id).toBe("ink"); // unchanged
+		});
+
+		// THE ordering regression, as an acceptance test. Read `prefs.theme.id`
+		// from INSIDE deleteUserTheme's mock implementation — i.e. at the exact
+		// moment the delete IPC call fires, before it has resolved — rather than
+		// after `await removePromise`. Asserting only the post-await state would
+		// pass under EITHER ordering (switch-then-delete or delete-then-switch),
+		// since both eventually leave the theme on the default; reading the value
+		// mid-flight is what actually distinguishes "switched first" from
+		// "switched after." Reversing remove()'s order (delete before switching)
+		// makes this fail — verified by manual mutation during implementation.
+		it("the active theme id is already switched away at the moment deleteUserTheme is invoked", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			await prefs.setTheme("ink");
+
+			let idAtDeleteCallTime: string | undefined;
+			mockDeleteUserTheme.mockImplementation(async () => {
+				idAtDeleteCallTime = prefs.theme.id;
+			});
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			expect(idAtDeleteCallTime).toBe("github-dark");
+		});
+
+		it("does not switch themes when deleting a user theme that is not the active one", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			mockThemeModule.__addMockTheme("other");
+			await prefs.setTheme("other");
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			expect(prefs.theme.id).toBe("other"); // unchanged
+			expect(mockDeleteUserTheme).toHaveBeenCalledWith("ink");
+		});
+
+		// Restore-on-failure: if deleteUserTheme rejects AFTER the switch already
+		// happened, the switch must be undone — otherwise a failed delete has
+		// silently changed the user's theme as a side effect.
+		it("restores the previous theme when deleteUserTheme fails after switching", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			await prefs.setTheme("ink");
+			expect(prefs.theme.id).toBe("ink");
+
+			mockDeleteUserTheme.mockRejectedValue(new Error("permission denied"));
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			// Restored to the theme that was active before the failed delete
+			// attempt, not left on the default it was switched to mid-flight.
+			expect(prefs.theme.id).toBe("ink");
+		});
+
+		it("surfaces a toast when deleteUserTheme fails", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			await prefs.setTheme("ink");
+			mockDeleteUserTheme.mockRejectedValue(new Error("permission denied"));
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			expect(toast.toasts.some((t) => t.kind === "error")).toBe(true);
+		});
+
+		it("does not attempt to restore when the deleted theme was not the active one and the delete fails", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			mockThemeModule.__addMockTheme("other");
+			await prefs.setTheme("other");
+			mockDeleteUserTheme.mockRejectedValue(new Error("permission denied"));
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			expect(prefs.theme.id).toBe("other"); // never touched
+		});
+
+		it("re-runs discovery after a successful delete so the registry drops the removed theme", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			await prefs.setTheme("ink");
+			mockDiscover.mockClear();
+
+			const removePromise = themeSetting().remove("ink");
+			confirmDelete();
+			await removePromise;
+
+			expect(mockDiscover).toHaveBeenCalled();
+		});
+	});
+
+	describe("theme setting: duplicate", () => {
+		function themeSetting(): ThemeSetting {
+			return prefs.settings.find((s) => s.id === "theme") as ThemeSetting;
+		}
+
+		// duplicate() awaits an async CSS read (meta.load() or loadUserThemes())
+		// BEFORE opening the naming prompt, so the prompt does not exist
+		// synchronously the instant duplicate() is called — a microtask flush is
+		// needed first. `await Promise.resolve()` alone is not always enough
+		// (the read may itself be a `.mockResolvedValue`, which is one more
+		// microtask hop), so this polls briefly rather than assuming a fixed
+		// number of ticks.
+		async function waitForPrompt(): Promise<void> {
+			for (let i = 0; i < 10 && !prompt.current; i++) {
+				await Promise.resolve();
+			}
+		}
+
+		async function confirmSave(name: string) {
+			await waitForPrompt();
+			const request = prompt.current;
+			if (!request) throw new Error("expected a naming prompt to be open");
+			prompt.resolve("save", name);
+		}
+
+		it("prompts for a name seeded from the source theme's name", async () => {
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await waitForPrompt();
+			const request = prompt.current;
+			expect(request?.input?.initial).toContain("GitHub Dark");
+			prompt.cancel();
+			await dupPromise;
+		});
+
+		it("cancelling performs no write", async () => {
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await waitForPrompt();
+			prompt.cancel();
+			await dupPromise;
+			expect(mockImportThemeCss).not.toHaveBeenCalled();
+		});
+
+		it("duplicating a builtin reads its CSS via load() and imports under a slugified id", async () => {
+			mockImportThemeCss.mockResolvedValue({
+				ok: true,
+				file: { id: "my-copy", path: "/themes/my-copy.css", revision: 1, css: "body { color: white; }" },
+			});
+
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await confirmSave("My Copy");
+			await dupPromise;
+
+			// nameThemeFlow rewrites the frontmatter @name to match the typed
+			// name (markdown-viewer-2ha) before writing, so the CSS handed to
+			// importThemeCss is no longer the source's raw, unlabelled string.
+			expect(mockImportThemeCss).toHaveBeenCalledWith(
+				"my-copy",
+				withFrontmatterName("body { color: white; }", "My Copy"),
+				"create-new",
+			);
+		});
+
+		// load() on a user theme returns SANITIZED css — duplicating must go back
+		// to loadUserThemes() for the raw source instead, or a re-import would
+		// sanitize an already-sanitized file a second time.
+		it("duplicating a user theme re-reads unsanitized CSS via loadUserThemes, not load()", async () => {
+			mockThemeModule.__addMockTheme("ink", { path: "/themes/ink.css", revision: 5 });
+			mockLoadUserThemes.mockResolvedValue([
+				{ id: "ink", path: "/themes/ink.css", revision: 5, css: "RAW UNSANITIZED CSS" },
+			]);
+			mockImportThemeCss.mockResolvedValue({
+				ok: true,
+				file: { id: "ink-copy", path: "/themes/ink-copy.css", revision: 1, css: "RAW UNSANITIZED CSS" },
+			});
+
+			const dupPromise = themeSetting().duplicate("ink");
+			await confirmSave("Ink Copy");
+			await dupPromise;
+
+			expect(mockImportThemeCss).toHaveBeenCalledWith(
+				"ink-copy",
+				withFrontmatterName("RAW UNSANITIZED CSS", "Ink Copy"),
+				"create-new",
+			);
+		});
+
+		it("toasts and does not import when the user theme's file is gone from disk", async () => {
+			mockThemeModule.__addMockTheme("ink");
+			mockLoadUserThemes.mockResolvedValue([]); // file vanished
+
+			// No naming prompt is ever shown for this case — duplicate() bails out
+			// (with a toast) before reaching nameThemeFlow, since there is no
+			// source CSS to name a copy of.
+			await themeSetting().duplicate("ink");
+
+			expect(prompt.current).toBeUndefined();
+			expect(mockImportThemeCss).not.toHaveBeenCalled();
+			expect(toast.toasts.some((t) => t.kind === "error")).toBe(true);
+		});
+
+		it("toasts on an import failure without throwing", async () => {
+			mockImportThemeCss.mockResolvedValue({ ok: false, reason: "failed", message: "disk full" });
+
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await confirmSave("My Copy");
+			await expect(dupPromise).resolves.toBeUndefined();
+
+			expect(toast.toasts.some((t) => t.kind === "error")).toBe(true);
+		});
+
+		it("re-runs discovery after a successful duplicate so the new theme appears", async () => {
+			mockImportThemeCss.mockResolvedValue({
+				ok: true,
+				file: { id: "my-copy", path: "/themes/my-copy.css", revision: 1, css: "body {}" },
+			});
+			mockDiscover.mockClear();
+
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await confirmSave("My Copy");
+			await dupPromise;
+
+			expect(mockDiscover).toHaveBeenCalled();
+		});
+
+		describe("naming prompt validation", () => {
+			function validate(value: string): string | null {
+				const request = prompt.current;
+				if (!request?.input?.validate) throw new Error("expected a naming prompt with a validate fn");
+				return request.input.validate(value);
+			}
+
+			function hint(value: string): string | null {
+				const request = prompt.current;
+				if (!request?.input?.hint) throw new Error("expected a naming prompt with a hint fn");
+				return request.input.hint(value);
+			}
+
+			it("rejects an empty name", async () => {
+				const dupPromise = themeSetting().duplicate("github-dark");
+				await waitForPrompt();
+
+				expect(validate("")).not.toBeNull();
+				expect(validate("   ")).not.toBeNull();
+
+				prompt.cancel();
+				await dupPromise;
+			});
+
+			it("rejects a name whose id is already in themeState.all", async () => {
+				const dupPromise = themeSetting().duplicate("github-dark");
+				await waitForPrompt();
+
+				// "GitHub Light" slugifies to "github-light", which is already a
+				// registered theme id (see BASELINE_THEMES).
+				expect(validate("GitHub Light")).not.toBeNull();
+
+				prompt.cancel();
+				await dupPromise;
+			});
+
+			it("rejects a name that slugifies to the bare 'theme' fallback", async () => {
+				const dupPromise = themeSetting().duplicate("github-dark");
+				await waitForPrompt();
+
+				expect(validate("___")).not.toBeNull();
+
+				prompt.cancel();
+				await dupPromise;
+			});
+
+			it("accepts a genuinely free, non-degenerate name", async () => {
+				const dupPromise = themeSetting().duplicate("github-dark");
+				await waitForPrompt();
+
+				expect(validate("A Perfectly Fine Name")).toBeNull();
+
+				prompt.cancel();
+				await dupPromise;
+			});
+
+			it("hint shows the derived id for the current field value", async () => {
+				const dupPromise = themeSetting().duplicate("github-dark");
+				await waitForPrompt();
+
+				expect(hint("Swiss Design Mine")).toContain("swiss-design-mine");
+
+				prompt.cancel();
+				await dupPromise;
+			});
+		});
+
+		it("re-opens the naming prompt when the backend still reports 'exists' after validate passed", async () => {
+			// The frontend's themeState.all can be stale relative to disk — the
+			// backend is the source of truth and can still refuse an id the
+			// frontend believed was free. The flow must not simply fail; it
+			// re-prompts with the backend's message.
+			mockImportThemeCss
+				.mockResolvedValueOnce({ ok: false, reason: "exists" })
+				.mockResolvedValueOnce({
+					ok: true,
+					file: { id: "my-copy", path: "/themes/my-copy.css", revision: 1, css: "body {}" },
+				});
+
+			const dupPromise = themeSetting().duplicate("github-dark");
+			await confirmSave("My Copy");
+
+			// A second prompt must open rather than the flow ending in a toast.
+			await waitForPrompt();
+			expect(prompt.current?.body).toMatch(/my-copy/);
+
+			await confirmSave("My Copy Two");
+			await dupPromise;
+
+			expect(mockImportThemeCss).toHaveBeenCalledTimes(2);
+			expect(mockImportThemeCss).toHaveBeenNthCalledWith(2, "my-copy-two", expect.any(String), "create-new");
+			expect(mockDiscover).toHaveBeenCalled();
 		});
 	});
 });

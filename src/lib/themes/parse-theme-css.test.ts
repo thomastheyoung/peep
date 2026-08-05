@@ -10,6 +10,7 @@ import {
 	assertParsed,
 	slugifyThemeId,
 	resolveThemeId,
+	withFrontmatterName,
 } from "./parse-theme-css";
 import { themeColors } from "./theme-colors";
 import { themeMeta } from "./theme-meta";
@@ -29,13 +30,13 @@ describe("toSolidColor", () => {
 		expect(toSolidColor(null)).toBeNull();
 	});
 
-	it("handwritten: takes the LAST layer (#fffff8 paper) over the repeating-linear-gradient rule lines on top", () => {
+	it("takes the LAST layer (#fffff8 paper) over the repeating-linear-gradient rule lines on top (formerly the handwritten gallery theme)", () => {
 		const value =
 			"repeating-linear-gradient(to bottom, transparent 0px, transparent 31px, #e8e0d4 31px, #e8e0d4 32px), #fffff8";
 		expect(toSolidColor(value)).toBe("#fffff8");
 	});
 
-	it("vaporwave: skips near-transparent rgba() scanline stops (alpha < 0.5)", () => {
+	it("skips near-transparent rgba() scanline stops, alpha < 0.5 (formerly the vaporwave gallery theme)", () => {
 		const value =
 			"repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 40px), " +
 			"repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 40px), " +
@@ -44,12 +45,12 @@ describe("toSolidColor", () => {
 		expect(toSolidColor(value)).toBe("#2d1b69");
 	});
 
-	it("glassmorphism: last layer is a gradient, so its first stop represents the theme", () => {
+	it("last layer is a gradient, so its first stop represents the theme (formerly the glassmorphism gallery theme)", () => {
 		const value = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 		expect(toSolidColor(value)).toBe("#667eea");
 	});
 
-	it("tropical-sunset: last layer is a gradient, so its first stop represents the theme", () => {
+	it("last layer is a gradient, so its first stop represents the theme (formerly the tropical-sunset gallery theme)", () => {
 		const value = "linear-gradient(180deg, #fff7ed 0%, #fff1e6 100%)";
 		expect(toSolidColor(value)).toBe("#fff7ed");
 	});
@@ -321,6 +322,192 @@ describe("resolveThemeId", () => {
 });
 
 // ---------------------------------------------------------------------------
+// withFrontmatterName
+//
+// Duplicating a theme without rewriting its frontmatter @name produces two
+// identically-labelled cards (user-theme.ts reads @name from the copied
+// file) — the exact confusion the naming flow exists to prevent. Four shapes:
+// frontmatter+@name, frontmatter without @name, no frontmatter at all, and
+// adversarial input that must not corrupt the rewrite.
+// ---------------------------------------------------------------------------
+
+describe("withFrontmatterName: name cannot escape the comment block", () => {
+	// REGRESSION, found by review. An earlier version of this function argued in
+	// its own doc comment that an escape was impossible because `*` and `/`
+	// "cannot close a block comment without the other adjacent" — which is true
+	// and irrelevant, since the user can simply type them adjacent. Both cases
+	// below were measured producing live CSS outside the comment.
+	const VALID_BODY = `.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+
+	// The property under test is NOT "the payload text is absent" — the words
+	// legitimately survive as part of the name, inside the comment, where they
+	// are inert. What must not survive is a comment DELIMITER originating from
+	// the name: `*/` ends the block outright, and a lone `/*` desyncs this
+	// file's own frontmatter scanner. Asserting on the delimiters, and on the
+	// file still parsing, distinguishes "inert text in a comment" from "live
+	// CSS" — a substring check conflates the two opposite outcomes.
+	const renamedNameField = (css: string, name: string) =>
+		withFrontmatterName(css, name).match(/@name.*/)?.[0] ?? "";
+
+	it("keeps a */ bearing name inside the comment, rewriting an existing block", () => {
+		const css = `/*! @name Old\n@description D.\n@author peep */\n${VALID_BODY}`;
+		const name = "Evil */ .app{display:none} /*";
+		const out = withFrontmatterName(css, name);
+
+		expect(renamedNameField(css, name)).not.toContain("*/");
+		expect(renamedNameField(css, name)).not.toContain("/*");
+
+		// Exactly one comment block — the one this function opened and closed.
+		// A surviving delimiter would show up here as a second pair.
+		expect(out.match(/\/\*/g)).toHaveLength(1);
+		expect(out.match(/\*\//g)).toHaveLength(1);
+
+		// The fields AFTER @name must not have been swallowed by a reopened
+		// comment, and the real `.app` rule must still be live CSS outside the
+		// block — the two things the escape destroyed.
+		expect(out).toContain("@description D.");
+		expect(out.slice(out.indexOf("*/") + 2)).toContain("--md-bg: #fff");
+	});
+
+	it("keeps a */ bearing name inside the comment when CSS has no frontmatter", () => {
+		// The no-block branch builds its own comment by interpolation and was
+		// equally affected — a test over only the rewrite branch would miss it.
+		const name = "E */ body{background:red} /*";
+		const out = withFrontmatterName(VALID_BODY, name);
+
+		expect(out.match(/\/\*/g)).toHaveLength(1);
+		expect(out.match(/\*\//g)).toHaveLength(1);
+		// The original CSS stays live and unmodified after the block. NOTE this
+		// branch writes only @name, so the result is deliberately
+		// `partial-frontmatter` — asserting `parseThemeCss(...).ok` here would
+		// be asserting a property this branch never promises, for ANY name.
+		expect(out.slice(out.indexOf("*/") + 2).trim()).toBe(VALID_BODY);
+	});
+
+	it("treats $ replacement patterns in a name as literal text", () => {
+		// `String.replace` interprets `$1`/`$&`/`` $` ``/`$'` in the REPLACEMENT
+		// string. Measured: a name of `$&` resurrected the previous name, and
+		// `A$1B$&C` duplicated the whole block. Only the rewrite branch was
+		// affected, which is why the frontmatter-less cases above stayed clean.
+		const css = `/*! @name Solar\n@description D.\n@author peep */\n${VALID_BODY}`;
+		for (const name of ["$&", "A$`B", "A$1B$&C", "$'"]) {
+			const line = withFrontmatterName(css, name).match(/@name.*/)?.[0] ?? "";
+			expect(line, `"${name}" was interpreted as a replacement pattern`).toBe(
+				`@name ${name}`,
+			);
+			// The old name must be gone, not resurrected by `$&`.
+			expect(line).not.toContain("Solar");
+		}
+	});
+});
+
+describe("withFrontmatterName", () => {
+	it("replaces an existing @name field, leaving other fields untouched", () => {
+		const css = `/*! @name Old Name\n@description Original description.\n@author peep */\n.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+		const result = withFrontmatterName(css, "New Name");
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(true);
+		if (parsed.ok) {
+			expect(parsed.frontmatter.name).toBe("New Name");
+			expect(parsed.frontmatter.description).toBe("Original description.");
+			expect(parsed.frontmatter.author).toBe("peep");
+		}
+	});
+
+	it("inserts an @name field when frontmatter is present but has none", () => {
+		const css = `/*! @description No name here.\n@author peep */\n.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+		const result = withFrontmatterName(css, "Fresh Name");
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(true);
+		if (parsed.ok) {
+			expect(parsed.frontmatter.name).toBe("Fresh Name");
+			expect(parsed.frontmatter.description).toBe("No name here.");
+			expect(parsed.frontmatter.author).toBe("peep");
+		}
+	});
+
+	it("prepends a new frontmatter block when there is none at all", () => {
+		const css = `.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+		const result = withFrontmatterName(css, "Brand New");
+
+		expect(result.startsWith("/*!")).toBe(true);
+		// The original CSS body must survive completely unmodified.
+		expect(result).toContain(css);
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(false); // still missing @description/@author
+		if (!parsed.ok) {
+			expect(parsed.issues).toContainEqual({ kind: "partial-frontmatter", missing: ["description", "author"] });
+		}
+	});
+
+	it("does not corrupt a @name-looking string inside @description's value", () => {
+		const css = `/*! @description Uses @name Fake internally\n@name Real Name\n@author peep */\n.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+		const result = withFrontmatterName(css, "Renamed");
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(true);
+		if (parsed.ok) {
+			expect(parsed.frontmatter.name).toBe("Renamed");
+			// The @name-looking text buried in @description's value must survive
+			// verbatim — only the real, anchored @name line was rewritten.
+			expect(parsed.frontmatter.description).toBe("Uses @name Fake internally");
+		}
+	});
+
+	it("does not corrupt a @name-looking string inside the CSS body (outside any frontmatter block)", () => {
+		const css = `/*! @name Old\n@description d\n@author peep */\n.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }\n/* a comment mentioning @name Bogus for good measure */`;
+		const result = withFrontmatterName(css, "Renamed Again");
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(true);
+		if (parsed.ok) expect(parsed.frontmatter.name).toBe("Renamed Again");
+		// The trailing body comment referencing "@name" must be untouched.
+		expect(result).toContain("/* a comment mentioning @name Bogus for good measure */");
+	});
+
+	it("round-trips through parseThemeCss: the swatch is unaffected by a name rewrite", () => {
+		const css = `/*! @name Old\n@description d\n@author peep */\n.app { --md-bg: #101010; --md-text: #efefef; --md-accent: #ff8800; }`;
+		const result = withFrontmatterName(css, "New");
+
+		const original = parseThemeCss(css);
+		const renamed = parseThemeCss(result);
+		expect(original.ok).toBe(true);
+		expect(renamed.ok).toBe(true);
+		if (original.ok && renamed.ok) {
+			expect(renamed.swatch).toEqual(original.swatch);
+			expect(renamed.frontmatter.name).toBe("New");
+		}
+	});
+
+	it("sanitizes the incoming name the same way parsed @name values are sanitized (control chars, length cap)", () => {
+		const css = `.app { --md-bg: #fff; --md-text: #000; --md-accent: #f00; }`;
+		const longName = "x".repeat(100) + "\x00\x07";
+		const result = withFrontmatterName(css, longName);
+
+		const parsed = parseThemeCss(result);
+		expect(parsed.ok).toBe(false); // still missing description/author
+		// Extract just the name via the frontmatter reader indirectly: re-parse
+		// with the other two fields present to get a clean ok:true read.
+		const withRest = result.replace("*/", "\n@description d\n@author peep */");
+		const reparsed = parseThemeCss(withRest);
+		expect(reparsed.ok).toBe(true);
+		if (reparsed.ok) {
+			expect(reparsed.frontmatter.name).toHaveLength(64);
+			expect(reparsed.frontmatter.name).not.toMatch(/[\x00-\x08]/);
+		}
+	});
+
+	it("falls back to a non-empty placeholder when the name sanitizes to nothing", () => {
+		const css = `.app { --md-bg: #fff; }`;
+		const result = withFrontmatterName(css, "\x00\x07");
+		expect(result).toContain("@name Untitled");
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Regression: frontmatter tags must be anchored to their own line.
 //
 // Unanchored, each field regex scanned the whole block and took its first hit
@@ -452,5 +639,56 @@ describe("real theme files", () => {
 		const r = parseThemeCss(css);
 		expect(r.ok).toBe(true);
 		if (r.ok) expect(r.frontmatter.name).toBe(themeMeta[id as keyof typeof themeMeta].name);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The repo-root gallery theme files (`themes/`, not `src/lib/themes/themes/`).
+//
+// These are the 15 themes moved out of the bundled registry to become a
+// browsable, importable gallery (markdown-viewer-rgm) — and until this block,
+// they had zero test coverage despite being exactly the files a user's
+// "Import theme…" flow will feed through this same parser. Read from disk
+// with `node:fs` for the same reason as the builtin block above: vitest's
+// `css: false` stubs `?raw` CSS imports to the empty string, so a glob-based
+// read here would assert nothing while appearing to pass.
+//
+// Unlike the builtin block, this does NOT pin the theme count. The README
+// drift test (`gallery-readme.test.ts`) already fails on a membership change,
+// so pinning the count here would just make adding a 16th theme a two-file
+// edit for no extra safety.
+// ---------------------------------------------------------------------------
+
+const GALLERY_DIR = join(process.cwd(), "themes");
+
+describe("gallery theme files", () => {
+	const entries = readdirSync(GALLERY_DIR)
+		.filter((f) => f.endsWith(".css"))
+		.sort()
+		.map((f) => [f.replace(/\.css$/, ""), readFileSync(join(GALLERY_DIR, f), "utf8")] as const);
+
+	it("finds at least one gallery theme", () => {
+		expect(entries.length).toBeGreaterThan(0);
+	});
+
+	it.each(entries)("%s parses without issues", (_id, css) => {
+		const r = parseThemeCss(css);
+		if (!r.ok) throw new Error(`issues: ${JSON.stringify(r.issues)}`);
+		expect(r.ok).toBe(true);
+	});
+
+	// Permanent regression guard for the markdown-viewer-rgm font-stack rewrite:
+	// no gallery theme may reference the app's own `/fonts/` directory. Those
+	// woff2 files are for the bundled registry; a gallery theme that pointed at
+	// them would 404 for anyone who imports it outside this repo.
+	it.each(entries)("%s does not reference /fonts/", (_id, css) => {
+		expect(css).not.toMatch(/url\(\s*["']?\/fonts\//i);
+	});
+
+	it("gallery ids are disjoint from builtin ids", () => {
+		const builtinIds = new Set(readdirSync(THEMES_DIR).map((f) => f.replace(/\.css$/, "")));
+		const galleryIds = entries.map(([id]) => id);
+		const collisions = galleryIds.filter((id) => builtinIds.has(id));
+		expect(collisions).toEqual([]);
 	});
 });

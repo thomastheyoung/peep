@@ -1,4 +1,5 @@
 import type { TocHeading } from "./markdown";
+import type { SanitizedHtml } from "./sanitize-html";
 
 /**
  * Saved scroll position for a tab.
@@ -23,7 +24,12 @@ export interface Tab {
 	path: string;
 	filename: string;
 	content: string;
-	rendered: string;
+	/**
+	 * Sanitized HTML, branded so it cannot be assigned from a raw `string`.
+	 * `renderMarkdown` is the only producer, and the brand is what stops a new
+	 * consumer from injecting unsanitized markup — see `sanitize-html.ts`.
+	 */
+	rendered: SanitizedHtml;
 	headings: TocHeading[];
 	activeHeadingId: string | null;
 	scroll: TabScroll;
@@ -44,7 +50,7 @@ export interface TabsAPI {
 	readonly activeIndex: number;
 	readonly active: Tab | undefined;
 	add(tab: Omit<Tab, 'color' | 'activeHeadingId' | 'scroll'>): void;
-	update(path: string, content: string, rendered: string, headings: TocHeading[]): void;
+	update(path: string, content: string, rendered: SanitizedHtml, headings: TocHeading[]): void;
 	close(index: number): void;
 	activate(index: number): void;
 	setActiveHeadingId(id: string | null): void;
@@ -77,7 +83,7 @@ export const tabs: TabsAPI = {
 		});
 		activeIndex = tabList.length - 1;
 	},
-	update(path: string, content: string, rendered: string, headings: TocHeading[]) {
+	update(path: string, content: string, rendered: SanitizedHtml, headings: TocHeading[]) {
 		const idx = tabList.findIndex((t) => t.path === path);
 		if (idx < 0) return;
 		const existing = tabList[idx];

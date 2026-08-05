@@ -1,6 +1,10 @@
-import { themeState, isThemeId } from "./themes/theme.svelte";
+import { themeState, isThemeId, discover } from "./themes/theme.svelte";
 import { type ThemeId } from "./themes/registry";
-import { loadPreferencesFile, savePreferencesFile } from "./ipc";
+import type { ThemeColors } from "./themes/parse-theme-css";
+import { slugifyThemeId, resolveThemeId, withFrontmatterName } from "./themes/parse-theme-css";
+import { loadPreferencesFile, savePreferencesFile, loadUserThemes, importThemeCss, deleteUserTheme } from "./ipc";
+import { prompt } from "./prompt.svelte";
+import { toast } from "./toast.svelte";
 
 type ContentWidth = "auto" | "wide" | "full";
 type SettingsSection = "appearance" | "layout" | "font";
@@ -14,7 +18,7 @@ interface ChoiceOption<T extends string = string> {
 	value: T;
 	label: string;
 	description?: string;
-	swatches?: { bg: string; text: string; accent: string };
+	swatches?: ThemeColors;
 }
 
 export interface ChoiceSetting<T extends string = string> {
@@ -43,7 +47,54 @@ export interface RangeSetting {
 	format: (value: number) => string;
 }
 
-export type SettingDef = ChoiceSetting | RangeSetting;
+/** Actions offered per-theme in the palette/panel. `"delete"` is user-theme only. */
+export type ThemeAction = "delete" | "duplicate";
+
+/**
+ * A single theme entry. NOT `ChoiceOption` — deliberately a separate,
+ * theme-specific shape rather than widening the shared `ChoiceOption`, which
+ * `content-width` also uses. `swatches` was already a theme-concept leak into
+ * `ChoiceOption` (see `hasSwatches` in `Preferences.svelte`, a runtime shape
+ * inference standing in for "is this the theme setting"); adding
+ * `source`/`path`/`revision`/`actions` on top of that shared type would leak
+ * further and make every non-theme `ChoiceOption` consumer carry fields that
+ * make no sense for it.
+ *
+ * `swatches` is REQUIRED, not optional: `user-theme.ts`'s `FALLBACK_SWATCH`
+ * guarantees every discovered user theme gets a (possibly gray) swatch
+ * triple, and `registry.ts` guarantees the same for builtins via the
+ * generated `theme-colors.ts` — so there is no real theme this type needs to
+ * represent without one, and making it required is what lets consumers stop
+ * treating "no swatch" as a case they have to handle.
+ */
+export interface ThemeOption {
+	value: string;
+	label: string;
+	swatches: ThemeColors;
+	source: "builtin" | "user";
+	/** User themes only — the CSS file's path on disk. */
+	path?: string;
+	/** User themes only — mtime in ms, used as a preview cache-bust key. */
+	revision?: number;
+	actions: readonly ThemeAction[];
+}
+
+export interface ThemeSetting {
+	type: "theme";
+	id: "theme";
+	label: string;
+	section: SettingsSection;
+	keywords: string[];
+	options: ThemeOption[];
+	value: string;
+	select: (value: string) => Promise<void>;
+	/** Delete a user theme. No-op (aside from the confirm/switch dance) on a builtin id. */
+	remove: (value: string) => Promise<void>;
+	/** Copy any theme (builtin or user) under a new id, via the naming flow. */
+	duplicate: (value: string) => Promise<void>;
+}
+
+export type SettingDef = ChoiceSetting | RangeSetting | ThemeSetting;
 
 export const settingsSections: { id: SettingsSection; label: string }[] = [
 	{ id: "appearance", label: "Appearance" },
@@ -224,8 +275,38 @@ const contentWidthValues: Record<ContentWidth, string> = {
 	full: "100%",
 };
 
+// The stored theme id from a launch whose scan could not run (`discover()`
+// returned `scanned: false`), held so later writes can put it back verbatim.
+//
+// It has to be the ORIGINAL string, not the visual fallback and not an
+// omitted field. Omitting is the trap: `savePreferencesFile` replaces the
+// whole file (`write_atomic` in lib.rs renames a freshly written temp over
+// it), so a payload with no `theme` key does not "leave the stored value
+// alone" — it ERASES it, on the very first zoom step or slider drag after a
+// failed scan. That is the same data loss this whole branch exists to
+// prevent, just reached by a different route. Measured before this was
+// written: the payload came out as
+// `{"contentWidth":"auto","zoomLevel":1.1,...}` with the user's id gone.
+//
+// A scan failure is not evidence the theme is gone, only that this launch
+// could not check — so the correct write is the value we were given, not a
+// guess and not a hole.
+//
+// `undefined` (the normal case, for every successful launch and every
+// explicit setTheme) means "serialize the live theme id as usual".
+// `setThemeValue` clears it, because an explicit user pick always wins: at
+// that moment there is a definite new value to write.
+let unverifiedThemeId: string | undefined;
+
 function allStored(themeId: string): StoredPreferences {
-	return { theme: themeId, contentWidth, zoomLevel, fontWeight, letterSpacing, lineHeight };
+	return {
+		theme: unverifiedThemeId ?? themeId,
+		contentWidth,
+		zoomLevel,
+		fontWeight,
+		letterSpacing,
+		lineHeight,
+	};
 }
 
 function persist() {
@@ -264,12 +345,287 @@ function setZoomValue(value: number) {
 
 async function setThemeValue(id: ThemeId) {
 	await themeState.setTheme(id);
+	// An explicit user pick is a definite value to persist regardless of how
+	// this session's theme field got here — releases any id a failed
+	// launch-time scan (see `unverifiedThemeId`) was holding on the user's
+	// behalf.
+	unverifiedThemeId = undefined;
 	persist();
+}
+
+/**
+ * Apply `candidateId` if it resolves against the (successfully) discovered
+ * registry, otherwise fall back to the default theme AND PERSIST that
+ * fallback (markdown-viewer-zm6). Callers MUST only reach this after a
+ * `discover()` call has reported `scanned: true` — this function has no way
+ * to tell "genuinely gone" from "couldn't check," so calling it on a failed
+ * scan would silently reintroduce the exact data loss `unverifiedThemeId`
+ * exists to prevent.
+ *
+ * Shared by two call sites that both need this same rule:
+ *   - `init()`, with `candidateId` = the freshly-parsed (not yet applied)
+ *     stored theme id.
+ *   - the `user-themes-changed` watcher's post-reconcile step, with
+ *     `candidateId` = the CURRENTLY ACTIVE `themeState.id` — a theme that was
+ *     valid a moment ago can stop resolving mid-session (the user deleted the
+ *     file), and that reconciliation is the identical rule at a different
+ *     trigger, not a different rule.
+ *
+ * Releases `unverifiedThemeId` unconditionally on entry: reaching this
+ * function at all means a scan just succeeded, so whatever an EARLIER failed
+ * scan was holding onto is no longer the right thing to write — either this
+ * candidate resolves (write it) or it doesn't (write the default instead).
+ */
+async function applyResolvedTheme(candidateId: string | undefined): Promise<void> {
+	unverifiedThemeId = undefined;
+	if (candidateId && isThemeId(candidateId)) {
+		await themeState.setTheme(candidateId);
+	} else {
+		await themeState.init();
+		persist();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Theme setting: remove (delete a user theme) and duplicate (copy any theme
+// under a new id).
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete a user theme.
+ *
+ * ORDERING IS THE WHOLE POINT — switch away from the theme being deleted
+ * BEFORE deleting its file, never after:
+ *
+ *   1. If the theme being removed is currently active, switch to the DEFAULT
+ *      theme (`themeState.defaultId`) first, and persist that switch.
+ *   2. Only then call `deleteUserTheme`.
+ *   3. On delete failure, restore the previous theme (best-effort — see
+ *      below) and toast an error.
+ *   4. On success, `redetectThemes()` to reconcile the live registry (drops
+ *      the now-gone theme from `themeState.all`).
+ *
+ * Deleting first would leave the app rendering a theme whose backing file is
+ * already gone for however long the debounced file-watcher takes to notice
+ * (150ms+, per `themes.rs`'s `watch_user_themes` doc comment) — and on Linux,
+ * `themes.rs` documents that an inotify watch on the themes directory can be
+ * lost entirely, so that reconcile might never fire this session at all.
+ *
+ * The switch target is unconditionally the DEFAULT theme, not "whatever was
+ * active before" and not "the next/previous card in the list" — that is what
+ * makes "user deletes the active theme" and "the active theme's file
+ * disappears out from under the app" (handled by `redetectThemes`'s
+ * `applyResolvedTheme` fallback) converge on the exact same visible outcome,
+ * rather than being two different behaviors for what is, from the theme
+ * system's point of view, the same event.
+ *
+ * If the delete call itself fails AFTER the switch already happened, the
+ * switch must be undone — otherwise a failed delete has silently changed the
+ * user's theme as a side effect, which is worse than the delete simply not
+ * happening.
+ */
+async function removeThemeValue(id: string): Promise<void> {
+	const meta = themeState.all.find((t) => t.id === id);
+	const confirmation = await prompt.ask<"cancel" | "delete">({
+		title: "Delete theme",
+		body: meta ? `Delete "${meta.name}"? This can't be undone.` : `Delete this theme? This can't be undone.`,
+		choices: [
+			// Cancel is `primary: true` so Enter is the safe action — a delete
+			// must always be a deliberate, separate confirm, never a fat-fingered
+			// Enter on the wrong row.
+			{ value: "cancel", label: "Cancel", primary: true },
+			{ value: "delete", label: "Delete", danger: true },
+		],
+		cancelValue: "cancel",
+	});
+	if (confirmation.choice !== "delete") return;
+
+	const wasActive = themeState.id === id;
+	const previousId = themeState.id;
+
+	if (wasActive) {
+		await setThemeValue(themeState.defaultId);
+	}
+
+	const outcome = await deleteUserTheme(id).then(
+		() => ({ ok: true as const }),
+		(err: unknown) => ({ ok: false as const, message: err instanceof Error ? err.message : String(err) }),
+	);
+
+	if (!outcome.ok) {
+		if (wasActive) {
+			// Best-effort restore. If `previousId` no longer resolves either
+			// (unlikely — we just had it loaded a moment ago) `setThemeValue`
+			// silently no-ops via `themeState.setTheme`'s own `!meta` guard,
+			// which is the same "can't apply, don't corrupt state" behavior
+			// used everywhere else a theme id fails to resolve.
+			await setThemeValue(previousId as ThemeId);
+		}
+		toast.error(`Couldn't delete theme — ${outcome.message}`);
+		return;
+	}
+
+	await preferences.redetectThemes();
+}
+
+/**
+ * Copy a theme's CSS under a new id via the shared naming flow.
+ *
+ * Source CSS selection matters: for a BUILTIN theme, `load()` is fine to call
+ * directly — builtin CSS is checked-in and `load()` always resolves
+ * `{ok: true}` for it (see `registry.ts`'s `builtinLoad`). For a USER theme,
+ * `load()` returns SANITIZED css (see `user-theme.ts` — the sanitizer strips
+ * `!important`, wraps selectors, etc.), which is exactly the wrong thing to
+ * write back to disk as a new theme: re-importing it would sanitize an
+ * already-sanitized (and therefore already-lossy) file a second time,
+ * compounding the loss. The unsanitized source has to come from a fresh
+ * `loadUserThemes()` read.
+ */
+async function duplicateThemeValue(id: string): Promise<void> {
+	const meta = themeState.all.find((t) => t.id === id);
+	if (!meta) return;
+
+	let sourceCss: string;
+	if (meta.source === "builtin") {
+		const result = await meta.load();
+		if (!result.ok) return; // builtins never refuse; unreachable in practice
+		sourceCss = result.css;
+	} else {
+		const files = await loadUserThemes();
+		const file = files.find((f) => f.id === id);
+		if (!file) {
+			toast.error(`Couldn't duplicate "${meta.name}" — its file is no longer on disk.`);
+			return;
+		}
+		sourceCss = file.css;
+	}
+
+	await nameThemeFlow(meta.name, sourceCss);
+}
+
+/**
+ * Suggest a starting NAME for the "name this theme" prompt: `sourceName`
+ * unchanged when its slug isn't already taken, otherwise `sourceName` with
+ * `resolveThemeId`'s numeric suffix appended — the same "-2, -3, …"
+ * disambiguation the id gets, surfaced on the visible name so the field's
+ * default value and its derived-id hint agree with each other the instant
+ * the prompt opens (both flows that call `nameThemeFlow` — duplicate, and
+ * "Keep both" on an import collision — start from a name that is, by
+ * definition, already taken).
+ */
+function suggestThemeName(sourceName: string, taken: ReadonlySet<string>): string {
+	const baseSlug = slugifyThemeId(sourceName);
+	const resolvedId = resolveThemeId(baseSlug, taken);
+	if (resolvedId === baseSlug) return sourceName;
+	const suffix = resolvedId.slice(baseSlug.length).replace(/^-/, " ");
+	return `${sourceName}${suffix}`;
+}
+
+/**
+ * Shared "name this theme" flow (markdown-viewer-2ha): prompts for a NAME
+ * (not an id — the field derives an id via `slugifyThemeId`, matching how
+ * `deriveImportId` in Preferences.svelte already prefers frontmatter `@name`
+ * over a filename), rewrites the CSS frontmatter to match via
+ * `withFrontmatterName` so the saved copy's card is labelled with the chosen
+ * name rather than the source's, and imports under `mode: "create-new"`.
+ *
+ * Shared by two call sites that are both, at the type-system level, "create a
+ * second theme from CSS whose name is already taken": `duplicateThemeValue`
+ * (the explicit Duplicate action) and the import-collision "Keep both" choice
+ * in Preferences.svelte.
+ *
+ * The prompt is pre-filled with `suggestThemeName`'s auto-suffixed
+ * suggestion rather than a blind " copy" suffix — the silent `-2` rename a
+ * naive importer would do silently becomes a visible, editable default, so
+ * the zero-thought path still costs one Enter but is a choice the user saw
+ * on screen first.
+ *
+ * If the backend still reports `reason: "exists"` after `validate` passed
+ * (the frontend's `themeState.all` can be stale relative to disk — that
+ * staleness is exactly why the backend re-checks; see `ImportOutcome`'s doc
+ * comment in ipc.ts), the prompt is re-opened with the backend's message
+ * rather than the flow simply failing, so a stale local list doesn't turn
+ * into a dead end.
+ */
+export async function nameThemeFlow(
+	sourceName: string,
+	css: string,
+	retryMessage?: string,
+	/**
+	 * Ids the BACKEND rejected as already-existing that `themeState.all` does
+	 * not know about. Threading these through the retry is what lets it make
+	 * progress: `themeState.all` is rebuilt from the registry on every call and
+	 * by definition never contains a disk-only id, so without this the same
+	 * suggestion is re-offered and re-rejected forever — the user could hold
+	 * Enter and never converge. Measured during review.
+	 */
+	rejected: ReadonlySet<string> = new Set(),
+): Promise<void> {
+	const taken = new Set([...themeState.all.map((t) => t.id), ...rejected]);
+
+	const result = await prompt.ask<"save" | "cancel">({
+		title: "Name this theme",
+		body: retryMessage ?? `Name for the copy of "${sourceName}":`,
+		choices: [
+			{ value: "cancel", label: "Cancel", primary: true },
+			{ value: "save", label: "Save" },
+		],
+		cancelValue: "cancel",
+		input: {
+			label: "Name",
+			initial: suggestThemeName(sourceName, taken),
+			validate: (value) => {
+				const trimmed = value.trim();
+				if (!trimmed) return "Name can't be empty.";
+				const slug = slugifyThemeId(trimmed);
+				if (slug === "theme" && trimmed.toLowerCase() !== "theme") {
+					return "That name has no usable characters — try adding letters or numbers.";
+				}
+				if (taken.has(slug)) return `A theme called "${trimmed}" already exists.`;
+				return null;
+			},
+			hint: (value) => {
+				const trimmed = value.trim();
+				if (!trimmed) return null;
+				return `Will be saved as \`${slugifyThemeId(trimmed)}\``;
+			},
+		},
+	});
+
+	if (result.choice !== "save" || !result.value) return;
+
+	const name = result.value.trim();
+	const id = slugifyThemeId(name);
+	const namedCss = withFrontmatterName(css, name);
+
+	const outcome = await importThemeCss(id, namedCss, "create-new");
+	if (outcome.ok) {
+		await preferences.redetectThemes();
+		return;
+	}
+
+	if (outcome.reason === "exists") {
+		// The frontend's `themeState.all` said `id` was free; the backend
+		// disagrees. Re-open the prompt, carrying `id` forward in `rejected` so
+		// the next suggestion actually differs — see the parameter's comment.
+		// Recursion is safe here despite being unbounded: every level awaits a
+		// fresh `prompt.ask`, so the stack unwinds at each `await` and each
+		// iteration costs one deliberate user interaction.
+		await nameThemeFlow(
+			sourceName,
+			css,
+			`"${id}" already exists on disk. Choose another name:`,
+			new Set([...rejected, id]),
+		);
+		return;
+	}
+
+	toast.error(`Couldn't save the theme — ${outcome.message}.`);
 }
 
 const settings: SettingDef[] = $derived([
 	{
-		type: "choice",
+		type: "theme",
 		id: "theme",
 		label: "Theme",
 		section: "appearance",
@@ -278,9 +634,15 @@ const settings: SettingDef[] = $derived([
 			value: t.id,
 			label: t.name,
 			swatches: t.colors,
+			source: t.source,
+			path: t.source === "user" ? t.path : undefined,
+			revision: t.source === "user" ? t.revision : undefined,
+			actions: t.source === "user" ? (["duplicate", "delete"] as const) : (["duplicate"] as const),
 		})),
 		value: themeState.id,
-		select: (value: string) => setThemeValue(value as ThemeId),
+		select: (value) => setThemeValue(value as ThemeId),
+		remove: (value) => removeThemeValue(value),
+		duplicate: (value) => duplicateThemeValue(value),
 	},
 	{
 		type: "choice",
@@ -375,6 +737,13 @@ export interface PreferencesAPI {
 	init(): Promise<void>;
 	/** Write any pending debounced save immediately. Call before the app quits. */
 	flush(): Promise<void>;
+	/**
+	 * Re-scans the user themes directory and reconciles the currently active
+	 * theme against the result. Called from the debounced `user-themes-changed`
+	 * listener in +page.svelte — a theme file can be deleted or edited on disk
+	 * at any point mid-session, not only at launch.
+	 */
+	redetectThemes(): Promise<void>;
 }
 
 export const preferences: PreferencesAPI = {
@@ -443,7 +812,54 @@ export const preferences: PreferencesAPI = {
 		return flushStored();
 	},
 
+	async redetectThemes() {
+		const discovery = await discover();
+		if (!discovery.scanned) {
+			// A re-scan can fail mid-session too (the directory becomes
+			// unreadable, an IPC hiccup) — the currently active theme is already
+			// applied and rendering fine, so there is nothing to reconcile and
+			// nothing to persist. Do NOT touch `unverifiedThemeId` here: that
+			// field is specifically for a stored-but-not-yet-applied id from
+			// `init()`; a failed re-scan mid-session has no such pending value.
+			return;
+		}
+
+		if (unverifiedThemeId !== undefined) {
+			// A launch-time scan failed to resolve the user's stored id, so
+			// `themeState.id` right now is only the VISUAL fallback (default) —
+			// not the theme the user actually chose. This later, successful scan
+			// is the first real chance to try the ORIGINAL stored id again, not
+			// merely to check whether the visual fallback still resolves (it
+			// always will; it's a builtin). `applyResolvedTheme` applies it if
+			// discovery now finds it, or commits to the default for real
+			// (persisting it) if it's genuinely gone.
+			await applyResolvedTheme(unverifiedThemeId);
+			return;
+		}
+
+		// No pending unverified id — reconcile the CURRENTLY ACTIVE theme
+		// instead. Only take the fallback path when it actually stopped
+		// resolving: a re-scan runs on every debounced `user-themes-changed`
+		// event, including ones that only ADD or edit an unrelated theme, and
+		// `applyResolvedTheme` would otherwise re-run `setTheme` (a full
+		// re-sanitize) on the SAME still-valid id for no reason.
+		if (isThemeId(themeState.id)) return;
+		// The theme that resolved a moment ago (the user deleted its file, or
+		// renamed it) no longer does. Already known invalid, so this call
+		// always takes `applyResolvedTheme`'s fallback branch.
+		await applyResolvedTheme(themeState.id);
+	},
+
 	async init() {
+		// Issued BEFORE loadPreferencesFile(), not awaited yet: both are
+		// independent IPC round trips (disk read vs. a themes-directory scan),
+		// so starting them together lets them overlap instead of forcing
+		// discovery to wait behind the preferences read. `discover()` itself is
+		// awaited immediately above the `isThemeId` check below, which is the
+		// only place its result is actually needed — everything between here
+		// and there (migration, numeric normalization) has no dependency on it.
+		const discoveryPromise = discover();
+
 		// Migration from the pre-on-disk-preferences localStorage scheme:
 		//
 		// | File     | localStorage   | Behavior                                            |
@@ -490,14 +906,34 @@ export const preferences: PreferencesAPI = {
 		if (stored.letterSpacing != null)
 			letterSpacing = normalize(stored.letterSpacing, NUMERIC_SPECS.letterSpacing);
 		if (stored.lineHeight != null) lineHeight = normalize(stored.lineHeight, NUMERIC_SPECS.lineHeight);
-		// `isThemeId` is a point-in-time check against the theme registry. Once
-		// user themes are discovered from disk (markdown-viewer-s0r), discovery
-		// must complete before this runs, or a valid user-theme id falls through
-		// to the default and the user's choice silently resets each launch.
-		if (stored.theme && isThemeId(stored.theme)) {
-			await themeState.setTheme(stored.theme);
-		} else {
+
+		// `isThemeId` is a point-in-time check against the live theme registry,
+		// so discovery MUST have completed before it runs here — awaited now,
+		// having been issued at the top of `init()` so its round trip overlapped
+		// with the preferences-file read above rather than running after it.
+		const discovery = await discoveryPromise;
+
+		if (!discovery.scanned) {
+			// The scan itself could not run (broken IPC, unreadable themes
+			// directory) — this is NOT evidence the stored theme is gone, only
+			// that this launch couldn't check. Apply the default so the window
+			// isn't left unthemed, but keep writing the user's ORIGINAL id, so
+			// a launch that merely failed to look cannot overwrite a choice
+			// whose file is probably still sitting on disk. Writing the visual
+			// fallback would destroy it; omitting the field would ALSO destroy
+			// it, because the preferences write replaces the whole file rather
+			// than merging into it. An explicit setTheme() later this session
+			// releases the held id (see setThemeValue).
+			unverifiedThemeId = stored.theme;
 			await themeState.init();
+		} else {
+			// Scan succeeded — `applyResolvedTheme` both releases any id an
+			// earlier failed scan was holding and applies (or falls back to and
+			// persists) the freshly-parsed stored id. See its doc comment: this
+			// is the SAME rule the watcher's reconciliation uses later in the
+			// session, just triggered here by init() instead of a live
+			// `user-themes-changed` event.
+			await applyResolvedTheme(stored.theme);
 		}
 	},
 };

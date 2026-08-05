@@ -1,38 +1,6 @@
 /*! @name Retro Terminal
 	@description Phosphor-green monospace text on black with scanline texture and glowing text-shadow headings.
 	@author peep */
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 500;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Mono";
-	font-weight: 600;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
-}
-
 @layer theme {
 	@keyframes pulse {
 		0%,
@@ -47,7 +15,7 @@
 	.app {
 		background: #0a0a0a;
 		color: #00ff41;
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
 		--md-accent: #00ff41;
 	}
@@ -65,7 +33,7 @@
 	}
 
 	.markdown-body h1 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-weight: 600;
 		font-size: 28px;
 		color: #00ff41;
@@ -84,7 +52,7 @@
 	}
 
 	.markdown-body h2 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-weight: 600;
 		font-size: 22px;
 		color: #00ff41;
@@ -102,7 +70,7 @@
 	}
 
 	.markdown-body h3 {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		font-weight: 500;
 		font-size: 18px;
 		color: #00ff41;
@@ -148,7 +116,7 @@
 	}
 
 	.markdown-body code {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		background: rgba(0, 255, 65, 0.12);
 		border-radius: 0;
 		color: #00ff41;
@@ -164,7 +132,7 @@
 	}
 
 	.markdown-body pre code {
-		font-family: "IBM Plex Mono", monospace;
+		font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 		color: #00ff41;
 		text-shadow: 0 0 4px rgba(0, 255, 65, 0.4);
 		border: none;

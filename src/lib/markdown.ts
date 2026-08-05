@@ -9,6 +9,7 @@ import {
 	createHighlighter,
 	type Highlighter,
 } from "shiki";
+import { sanitizeHtml, type SanitizedHtml } from "./sanitize-html";
 
 export interface TocHeading {
 	text: string;
@@ -20,14 +21,38 @@ function stripHtmlTags(html: string): string {
 	return html.replace(/<[^>]*>/g, "");
 }
 
+/**
+ * Namespace prefix for every generated heading id.
+ *
+ * NOT cosmetic — without it, headings silently lose their anchors. DOMPurify's
+ * DOM-clobbering protection strips `id` values that collide with a property of
+ * `document`, because an injected `id="cookie"` shadows `document.cookie`.
+ * That is a real attack and the protection stays on.
+ *
+ * The cost is that ordinary headings collide too. MEASURED against this repo's
+ * config: `title`, `body`, `head`, `forms`, `images`, `links`, `location`,
+ * `cookie`, `scripts`, `embeds`, `name` and `length` are all stripped — so a
+ * document whose first heading is `# Title` loses its ToC entry, its
+ * scroll-spy tracking, and its scroll restore, with nothing reporting an error.
+ *
+ * Prefixing at the SOURCE rather than reaching for DOMPurify's
+ * `SANITIZE_NAMED_PROPS` keeps `TocHeading.id` and the DOM id identical by
+ * construction — `FloatingDock.svelte:20` and `+page.svelte:153` both resolve
+ * `#${CSS.escape(id)}` from that array, so the two must never diverge. The
+ * `user-content-` spelling is the same convention GitHub uses on rendered
+ * markdown, for exactly this reason.
+ */
+const HEADING_ID_PREFIX = "user-content-";
+
 function slugify(text: string): string {
-	return text
+	const slug = text
 		.toLowerCase()
 		.trim()
 		.replace(/[^\w\s-]/g, "")
 		.replace(/[\s_]+/g, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
+	return slug ? `${HEADING_ID_PREFIX}${slug}` : "";
 }
 
 const emojiMap: Record<string, string> = {};
@@ -85,7 +110,13 @@ let mdInstance: Marked | null = null;
 function getMd(): Marked {
 	if (mdInstance) return mdInstance;
 	const md = new Marked();
-	md.use(markedKatex({ throwOnError: false, nonStandard: true }));
+	// `trust: false` is KaTeX's default, stated explicitly because it is a
+	// security control: it refuses \href, \url and \htmlClass, which would
+	// otherwise let LaTeX in an untrusted document emit arbitrary links and
+	// class names. Relying on an undeclared upstream default for that is the
+	// same single-control pattern this whole change exists to remove — and a
+	// KaTeX major bump could flip it without any signal here.
+	md.use(markedKatex({ throwOnError: false, nonStandard: true, trust: false }));
 	md.use(markedFootnote());
 	md.use(markedEmoji({
 		emojis: emojiMap,
@@ -99,7 +130,8 @@ function getMd(): Marked {
 				}
 				if (lang === "math" || lang === "katex") {
 					try {
-						return `<div class="katex-block">${katex.renderToString(text, { displayMode: true, throwOnError: false })}</div>`;
+						// `trust: false` for the same reason as the inline path above.
+						return `<div class="katex-block">${katex.renderToString(text, { displayMode: true, throwOnError: false, trust: false })}</div>`;
 					} catch {
 						return `<pre><code class="language-math">${escapeHtml(text)}</code></pre>`;
 					}
@@ -120,7 +152,10 @@ function getMd(): Marked {
 			heading({ tokens, depth }) {
 				const rendered = this.parser.parseInline(tokens);
 				const plainText = stripHtmlTags(rendered);
-				let slug = slugify(plainText) || `heading-${depth}`;
+				// The fallback carries the same prefix as `slugify`'s output — a
+				// heading with no slug-able characters must still get an id the
+				// sanitizer keeps.
+				let slug = slugify(plainText) || `${HEADING_ID_PREFIX}heading-${depth}`;
 				const count = currentSlugCounts.get(slug) ?? 0;
 				currentSlugCounts.set(slug, count + 1);
 				if (count > 0) slug = `${slug}-${count}`;
@@ -139,7 +174,7 @@ let cachedHighlighter: Highlighter | null = null;
 export async function renderMarkdown(
 	source: string,
 	path?: string,
-): Promise<{ html: string; generation: number; headings: TocHeading[] }> {
+): Promise<{ html: SanitizedHtml; generation: number; headings: TocHeading[] }> {
 	const key = path ?? "";
 	const generation = (renderGenerations.get(key) ?? 0) + 1;
 	renderGenerations.set(key, generation);
@@ -154,7 +189,13 @@ export async function renderMarkdown(
 	currentSlugCounts = new Map<string, number>();
 
 	const md = getMd();
-	const html = await md.parse(source);
+	// THE choke point. Every consumer of `html` — the page's {@html}, the theme
+	// preview's shadow root, the Storybook seed — receives an already-sanitized
+	// value, and the `SanitizedHtml` return type means a future consumer cannot
+	// opt out or forget. See `sanitize-html.ts` for why it lives here and not at
+	// the injection sites. This runs on live-reload re-renders too, which is
+	// correct: a file edited on disk is fresh untrusted input.
+	const html = sanitizeHtml(await md.parse(source));
 	const headings = currentHeadings;
 	return { html, generation, headings };
 }

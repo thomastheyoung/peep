@@ -12,6 +12,8 @@ use tauri::{Emitter, Manager};
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
 
+mod themes;
+
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown"];
 
 // Preferences file name and its atomic-write sibling. The `.tmp` name is
@@ -118,6 +120,10 @@ struct AppState {
     // Guards preference writes so the fixed `.tmp` sibling name never collides
     // with itself under concurrent saves.
     prefs_lock: Mutex<()>,
+    // User theme storage: its own write lock and its own filesystem watcher,
+    // independent of the fields above. See `themes.rs` for why these are not
+    // shared with `prefs_lock` / `watcher`.
+    themes: themes::ThemesState,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -281,9 +287,15 @@ fn get_initial_files(app: tauri::AppHandle) -> Vec<String> {
 }
 
 /// Atomically replace `target_name` (inside `dir`) with `bytes` via a sibling
-/// tmp file + rename. Caller must hold `AppState::prefs_lock` — the tmp
-/// filename is fixed, so concurrent callers would stomp on each other.
-fn write_atomic(
+/// tmp file + rename. Contract: no two concurrent calls may share a
+/// `tmp_name`, or they can stomp on each other's tmp file mid-write.
+/// Preferences satisfy this with a single fixed tmp name behind
+/// `AppState::prefs_lock`; themes satisfy it with a per-id tmp name
+/// (`<id>.css.tmp`) behind `AppState::themes.lock`, which is what allows
+/// concurrent imports of *different* ids to proceed without serializing on
+/// each other. The function itself needs no changes to serve both callers —
+/// it was already parameterized on the names.
+pub(crate) fn write_atomic(
     dir: &Path,
     tmp_name: &str,
     target_name: &str,
@@ -501,6 +513,7 @@ pub fn run() {
             watcher: Mutex::new(None),
             initial_files: Mutex::new(Vec::new()),
             prefs_lock: Mutex::new(()),
+            themes: themes::ThemesState::new(),
         })
         .invoke_handler(tauri::generate_handler![
             read_file,
@@ -510,7 +523,11 @@ pub fn run() {
             is_default_markdown_viewer,
             set_default_markdown_viewer,
             get_preferences,
-            set_preferences
+            set_preferences,
+            themes::get_user_themes,
+            themes::import_theme,
+            themes::delete_user_theme,
+            themes::watch_user_themes
         ])
         .setup(|app| {
             let handle = app.handle();

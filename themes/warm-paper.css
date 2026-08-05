@@ -1,110 +1,6 @@
 /*! @name Warm Paper
 	@description Cream paper background with a dark-red accent and serif Merriweather body text.
 	@author peep */
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 500;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-500-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 600;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-600-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-700-normal.woff2") format("woff2");
-}
-
 @layer theme {
 	.app {
 		background: #fdf6ec;
@@ -122,7 +18,7 @@
 	}
 
 	.markdown-body h1 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 700;
 		font-size: 36px;
 		color: #2c241d;
@@ -135,7 +31,7 @@
 	}
 
 	.markdown-body h2 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 500;
 		font-style: italic;
 		font-size: 26px;
@@ -148,7 +44,7 @@
 	}
 
 	.markdown-body h3 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 600;
 		font-size: 20px;
 		color: #3d3229;
@@ -156,7 +52,7 @@
 	}
 
 	.markdown-body h4 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 600;
 		font-size: 17px;
 		color: #4a3f35;
@@ -190,7 +86,7 @@
 	}
 
 	.markdown-body code {
-		font-family: "Courier Prime", "Courier New", monospace;
+		font-family: "Courier Prime", "Courier New", Courier, monospace;
 		background: #f0e7d8;
 		border-radius: 3px;
 		color: #c0392b;
@@ -205,7 +101,7 @@
 	}
 
 	.markdown-body pre code {
-		font-family: "Courier Prime", "Courier New", monospace;
+		font-family: "Courier Prime", "Courier New", Courier, monospace;
 		color: #3d3229;
 	}
 
@@ -228,7 +124,7 @@
 	}
 
 	.markdown-body th {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 600;
 		font-size: 13px;
 		text-transform: uppercase;
@@ -263,7 +159,7 @@
 	.markdown-body hr::after {
 		content: "* * *";
 		display: block;
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-size: 16px;
 		letter-spacing: 8px;
 		color: #b8a88a;
@@ -276,7 +172,7 @@
 
 	.markdown-body ol li::marker {
 		color: #b8a88a;
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 	}
 
 	.markdown-body img {

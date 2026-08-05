@@ -1,110 +1,6 @@
 /*! @name Newspaper
 	@description Aged-paper background with a centered double-ruled Playfair Display masthead headline and Courier Prime for code.
 	@author peep */
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 300;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-300-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Merriweather";
-	font-weight: 700;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/merriweather-latin-700-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 600;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-600-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Playfair Display";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/playfair-display-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-400-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 400;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-400-italic.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-700-normal.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "Courier Prime";
-	font-weight: 700;
-	font-style: italic;
-	font-display: swap;
-	src: url("/fonts/courier-prime-latin-700-italic.woff2") format("woff2");
-}
-
 @layer theme {
 	.app {
 		background: #fdf8ef;
@@ -123,7 +19,7 @@
 	}
 
 	.markdown-body h1 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 900;
 		font-size: 3em;
 		color: #8b0000;
@@ -136,7 +32,7 @@
 	}
 
 	.markdown-body h2 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 700;
 		font-size: 1.6em;
 		color: #222;
@@ -160,7 +56,7 @@
 	}
 
 	.markdown-body h4 {
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 700;
 		font-size: 1.1em;
 		color: #444;
@@ -176,7 +72,7 @@
 
 	.markdown-body h1 + p::first-letter {
 		float: left;
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-weight: 900;
 		font-size: 3.5em;
 		line-height: 0.8;
@@ -209,7 +105,7 @@
 	}
 
 	.markdown-body code {
-		font-family: "Courier Prime", "Courier New", monospace;
+		font-family: "Courier Prime", "Courier New", Courier, monospace;
 		color: #8b0000;
 		background: none;
 	}
@@ -223,7 +119,7 @@
 	}
 
 	.markdown-body pre code {
-		font-family: "Courier Prime", "Courier New", monospace;
+		font-family: "Courier Prime", "Courier New", Courier, monospace;
 		color: #333;
 	}
 
@@ -238,7 +134,7 @@
 
 	.markdown-body blockquote::before {
 		content: "\201C";
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 		font-size: 4em;
 		color: #8b0000;
 		position: absolute;
@@ -301,7 +197,7 @@
 
 	.markdown-body ol li::marker {
 		color: #8b0000;
-		font-family: "Playfair Display", serif;
+		font-family: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 	}
 
 	.markdown-body img {

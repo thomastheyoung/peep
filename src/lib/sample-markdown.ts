@@ -1,8 +1,17 @@
+import { trustedConstant } from "./sanitize-html";
+
 /**
  * Pre-rendered HTML representing a typical markdown document.
  * Used by design exploration components to showcase styling variations.
+ *
+ * Branded via `trustedConstant` because 20 exploration components inject it
+ * with `{@html}`. It is an author-written literal in this repo with no
+ * interpolation, so sanitizing it would be theatre — but leaving it a bare
+ * `string` would make those 20 sinks accept unbranded input, which would
+ * falsify the whole point of `SanitizedHtml`: that every `{@html}` in the repo
+ * is typed, so adding a new one with raw input fails `pnpm check`.
  */
-export const sampleMarkdownHtml = `
+export const sampleMarkdownHtml = trustedConstant(`
 <h1>Welcome to Markdown Viewer</h1>
 <p>A beautiful, fast markdown viewer built with <strong>Tauri</strong> + <strong>Svelte 5</strong>. This paragraph contains <em>emphasized text</em>, <code>inline code</code>, and a <a href="#">hyperlink</a> to test all inline styles.</p>
 
@@ -56,4 +65,4 @@ export const sampleMarkdownHtml = `
 <p>The markdown parser uses <strong>marked</strong> for speed and <strong>shiki</strong> for accurate syntax highlighting. Files are re-rendered on every save, with typical render times under <code>5ms</code> for most documents.</p>
 
 <p><em>Edit this file and watch it update live!</em></p>
-`;
+`);

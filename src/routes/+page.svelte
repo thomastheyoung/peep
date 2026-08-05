@@ -9,6 +9,7 @@
 	import { updater } from "$lib/updater.svelte";
 	import { buildCommands } from "$lib/commands";
 	import { openFile, closeTab, openFileDialog, handleFileChanged, clearAllTimers } from "$lib/files";
+	import { watchUserThemes } from "$lib/ipc";
 	import { copyCode } from "$lib/copy-code";
 	import { renderMermaid, rerenderMermaid } from "$lib/mermaid";
 	import { scrollSpy } from "$lib/scroll-spy";
@@ -18,6 +19,8 @@
 	import EmptyState from "$lib/components/EmptyStateStamp.svelte";
 	import Preferences from "$lib/components/Preferences.svelte";
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
+	import Toast from "$lib/components/Toast.svelte";
+	import Prompt from "$lib/components/Prompt.svelte";
 	import "$lib/themes/base.css";
 	import "katex/dist/katex.min.css";
 
@@ -271,6 +274,29 @@
 			updater.check().finally(openPalette);
 		});
 
+		// `user-themes-changed` is a BARE SIGNAL (no payload) emitted by the
+		// Rust filesystem watcher on the themes directory — any add/edit/delete
+		// fires it. Debounced 150ms to match the precedent at files.ts:50-65
+		// (`handleFileChanged`): an editor saving a theme file can fire several
+		// filesystem events in quick succession, and each would otherwise mean
+		// its own `discover()` round trip. `redetectThemes()` both re-runs
+		// discovery AND reconciles the active theme against the fresh result,
+		// so a deleted active theme falls back and persists instead of leaving
+		// stale CSS applied while a broken id waits to be written on the next
+		// unrelated setter call.
+		let userThemesChangedTimer: ReturnType<typeof setTimeout> | undefined;
+		const unlistenUserThemesChanged = listen("user-themes-changed", () => {
+			clearTimeout(userThemesChangedTimer);
+			userThemesChangedTimer = setTimeout(() => {
+				prefs.redetectThemes().catch((err) => console.error("Failed to redetect user themes:", err));
+			}, 150);
+		});
+
+		// Idempotent on the Rust side — started once at startup so theme file
+		// changes are live-reloaded for the rest of the session without the
+		// user needing to reopen Preferences.
+		watchUserThemes().catch((err) => console.error("Failed to watch user themes:", err));
+
 		invoke<string[]>("get_initial_files").then(async (files) => {
 			for (const path of files) {
 				await openFile(path);
@@ -298,6 +324,8 @@
 			unlistenOpen.then((fn) => fn());
 			unlistenZoom.then((fn) => fn());
 			unlistenCheckUpdates.then((fn) => fn());
+			unlistenUserThemesChanged.then((fn) => fn());
+			clearTimeout(userThemesChangedTimer);
 			clearTimeout(autoCheckTimer);
 			window.removeEventListener("beforeunload", flushPrefs);
 			clearAllTimers();
@@ -314,6 +342,8 @@
 
 <Preferences />
 <CommandPalette />
+<Toast />
+<Prompt />
 
 <div
 	class="app"
