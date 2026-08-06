@@ -123,7 +123,18 @@ jobs:
           # platforms instead of three -- and a missing platform key means
           # those clients silently see no update at all. The `manifest` job
           # below rebuilds it once, after every platform has uploaded.
-          uploadUpdaterJson: false
+          #
+          # The name is `includeUpdaterJson`, NOT `uploadUpdaterJson`. That
+          # typo shipped v0.2.0: Actions only *warns* on an unknown input, so
+          # the workflow stayed green while the setting did nothing and the
+          # default (true) put all three jobs back in the race this line
+          # exists to prevent. It went unnoticed because the `manifest` job
+          # overwrites latest.json afterwards and repaired the result -- so
+          # the guard here is the redundant one, and a silent regression to
+          # single-platform manifests is exactly what it looks like when the
+          # redundancy is gone. Check the run log for "Unexpected input(s)"
+          # after bumping tauri-action; renamed inputs fail this way, quietly.
+          includeUpdaterJson: false
 
   # Single writer for latest.json, so there is no race to lose.
   manifest:
