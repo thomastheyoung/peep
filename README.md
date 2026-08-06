@@ -1,6 +1,13 @@
-# peep
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero/banner-dark.svg">
+  <img src="docs/hero/banner-light.svg" alt="peep" width="600">
+</picture>
 
 A fast, themeable desktop markdown viewer. Point it at a file and read.
+
+</div>
 
 | | |
 | :---: | :---: |

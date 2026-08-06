@@ -33,6 +33,9 @@ pnpm gen:theme-colors
 # Regenerate themes/README.md (after adding/removing/editing a gallery theme)
 pnpm gen:gallery-readme
 
+# Regenerate the README banner SVGs (light + dark wordmark)
+pnpm gen:banner
+
 # Real-browser suites — these answer questions jsdom cannot (see below)
 pnpm test:sanitizer   # adversarial theme CSS in Chromium AND WebKit
 pnpm diff:themes      # computed-style diff per theme against git HEAD
@@ -128,6 +131,15 @@ pnpm build-storybook
   **jsdom cannot verify any of this** — it supports neither `@layer` nor `var()`, so `getComputedStyle` returns roughly what was literally declared and every cascade assertion silently passes or fails for the wrong reason. Verify in real Chromium via the already-present `playwright` dep, diffing computed styles against `git show HEAD:` for each theme (`pnpm diff:themes`).
 
   The same limit applies to the theme sanitizer, and there it is worse because the vitest suite *looks* complete. `pnpm test:sanitizer` exists because two of the sanitizer's five rules have no real enforcement coverage under jsdom: it has no `CSSPropertyRule` and discards `@property` before the sanitizer sees it (mutation-tested — stubbing `isPropertyRule` to `return false` leaves the whole vitest suite green), and its declaration parser silently drops `@font-face` `src: url(...)`, which two bundled themes depend on. The harness therefore asserts on a rendered outcome — what color the titlebar actually is — not on the sanitizer's output string. It runs **both** Chromium and WebKit, because they genuinely disagree: `CSS.supports("at-rule(@scope)")` is true in Chromium and false in WebKit while `@scope` works in both, which is why the sanitizer probes by parsing a fixture instead of asking `CSS.supports`.
+
+### README assets (`docs/hero/`)
+
+`banner-dark.svg` / `banner-light.svg` are **generated** by `pnpm gen:banner` (`scripts/generate-banner.mjs`) and consumed by a `<picture>` block at the top of `README.md`. Two constraints, both explained at length in the script header:
+
+- **The wordmark is `<path>` outlines, not `<text>`.** GitHub does not fetch webfonts for README images, so `font-family: "Space Grotesk"` silently falls back to a generic sans. The four glyphs are baked in as path data extracted from `static/fonts/space-grotesk-latin-700-normal.woff2`; changing the wordmark or font means re-extracting them (fontTools recipe is in the header). This keeps the script dependency-free — no font parser in `package.json` for an asset that changes ~never
+- **Layout centers on the glyphs' ink box, not font metrics.** "peep" is all-lowercase with two descenders and no ascenders, so metric-based centering sits visibly low and collides the `p` tails with the tagline. Both bugs were real and neither was visible without rendering — screenshot the SVG before trusting a geometry change
+
+In the `<picture>`, the `<img>` fallback must stay the **light** variant: `<source media="(prefers-color-scheme: dark)">` is the override, and the `<img>` is what renders anywhere the media query isn't honored (npm, RSS readers, plain markdown renderers). The banner's `alt` text is also what replaced the old `# peep` H1 as the document's accessible name.
 
 ### Storybook (`.storybook/`, `src/stories/`, `src/lib/storybook/`)
 

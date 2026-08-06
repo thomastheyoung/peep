@@ -18,6 +18,7 @@
     "gen:theme-colors": "node scripts/extract-theme-colors.ts",
     "gen:gallery-readme": "node scripts/generate-gallery-readme.ts",
     "gen:theme-shots": "node scripts/theme-shots.mjs",
+    "gen:banner": "node scripts/generate-banner.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
