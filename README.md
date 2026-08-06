@@ -2,6 +2,13 @@
 
 A fast, themeable desktop markdown viewer. Point it at a file and read.
 
+| | |
+| :---: | :---: |
+| <img src="docs/hero/github-dark.png" alt="peep rendering a document in the GitHub Dark theme" width="420"> | <img src="docs/hero/neo-brutalist.png" alt="peep rendering the same document in the Neo Brutalist theme" width="420"> |
+| **GitHub Dark** | **Neo Brutalist** |
+
+The same document, two of the seven built-in themes. Themes are plain CSS, so they change layout and type as freely as color, not just recolor it — [twenty more](#themes) come built in or as importable files.
+
 ```bash
 peep README.md
 ```
@@ -62,7 +69,7 @@ Markdown goes through [marked](https://marked.js.org/), then the result is sanit
 
 Seven themes ship in the app — GitHub Dark, GitHub Light, Neo Brutalist, Pastel Dream, Swiss Design, Candy Pop, and Minimal Mono — each previewed live in the command palette before you commit to it.
 
-Fifteen more live in [`themes/`](./themes) as a browsable gallery. They are plain CSS files rather than bundled themes: open the palette, choose **Import theme…**, and pick one. Imported themes are watched on disk, so editing the file updates the app as you type — which makes the gallery files a reasonable starting point for writing your own. Copy one, edit its `/*! @name … */` frontmatter and its `.app` rule, and re-import.
+Fifteen more live in [`themes/`](./themes) as a browsable gallery, [previewed in full](./themes#previews). They are plain CSS files rather than bundled themes: open the palette, choose **Import theme…**, and pick one. Imported themes are watched on disk, so editing the file updates the app as you type — which makes the gallery files a reasonable starting point for writing your own. Copy one, edit its `/*! @name … */` frontmatter and its `.app` rule, and re-import.
 
 Imported CSS is untrusted input, and peep treats it that way. Rather than pattern-matching the source text, the sanitizer parses the CSS into a constructed stylesheet and **rebuilds the output from the parsed rule tree**, so an attack that only exists in the source string cannot survive into the output. On top of that it strips `!important`, drops `@property`, namespaces `@keyframes`, and scopes everything to the content area so a theme cannot repaint the app's own chrome. The reasoning, including the string-based design this replaced and how it was defeated, is documented at the top of [`sanitize-theme-css.ts`](./src/lib/themes/sanitize-theme-css.ts).
 
@@ -96,14 +103,18 @@ pnpm test             # vitest
 pnpm storybook        # component, theme, and design-exploration stories
 ```
 
-Two generated files are worth knowing about, because editing them by hand gets your work overwritten:
+Some files here are generated, and editing them by hand gets your work overwritten:
 
 ```bash
 pnpm gen:theme-colors    # theme preview swatches, read out of each theme's own CSS
 pnpm gen:gallery-readme  # themes/README.md
+pnpm gen:theme-shots     # docs/theme-shots/*.png — every theme, rendered
+
+# the two cropped shots at the top of this file
+pnpm gen:theme-shots --only github-dark,neo-brutalist --crop --height 560 --out docs/hero
 ```
 
-Theme swatches are derived rather than authored so a preview color cannot disagree with what the theme actually paints.
+Theme swatches are derived rather than authored so a preview color cannot disagree with what the theme actually paints. The screenshots run the app's real `renderMarkdown` inside headless Chromium, so syntax highlighting, math, and font loading are the ones the app ships rather than a fixture's approximation of them. Re-run it after changing a theme's CSS — nothing yet fails when a committed PNG goes stale.
 
 Two test suites deliberately run outside vitest, because jsdom cannot answer the questions they ask — it models neither `@layer` nor `var()`, so cascade assertions there pass or fail for the wrong reason:
 
